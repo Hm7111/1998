@@ -1,42 +1,1 @@
-Always focus on high performance, fast load times, and avoiding redundant or unused code/libraries.
-
-If the project becomes too large for the AI context window, split it into independent modules (e.g., UI, Letters, Branch Management, etc.).
-
-Large image/media files can be excluded from the AI context using the .bolt/ignore file.
-
-Keep all modules documented, and provide a brief description for any new feature or section.
-
-# إدارة الخطابات والمراسلات المؤسسية
-# Letter & Correspondence Management System
-
----
-
-## 📝 **وصف المشروع | Project Description**
-
-**العربية:**
-هذا المشروع هو نظام إلكتروني متكامل لإدارة الخطابات والمراسلات داخل المؤسسة، مع دعم صلاحيات متعددة، قوالب للخطابات، وإدارة للمستخدمين والأفرع. يركّز المشروع على الأداء العالي، الكود النظيف، والمرونة في التوسعة مستقبلاً.
-
-**English:**
-This project is a comprehensive electronic system for managing official letters and internal/external correspondence, with multi-role permissions, customizable letter templates, user and branch management. The main priorities are high performance, clean code, and easy future extensibility.
-
----
-
-## 📂 **هيكلية المشروع | Project Structure**
-
-```plaintext
-.
-├── public/                  # ملفات عامة (صور، شعارات، HTML ثابتة)
-├── src/
-│   ├── components/          # مكونات الواجهة (واجهة المستخدم/لوحات تحكم)
-│   ├── features/            # وظائف متخصصة مثل: الخطابات، الفروع، المستخدمين
-│   ├── hooks/               # دوال مخصصة (React Hooks)
-│   ├── pages/               # الصفحات الرئيسية (Dashboard, Settings, Letters...)
-│   ├── lib/                 # مكتبات وأدوات مساعدة
-│   ├── store/               # إدارة الحالة (State Management)
-│   └── types/               # تعريف الأنواع (TypeScript Types)
-├── supabase/                # إعدادات وقواعد بيانات Supabase + ترحيلات (migrations)
-├── .bolt/                   # إعدادات خاصة بمنصة Bolt (مثل .boltignore)
-├── scripts/                 # سكربتات مساعدة (Post-build, Clean up, ...)
-├── package.json             # إعدادات المشروع واعتمادياته
-├── tailwind.config.js       # إعداد Tailwind CSS
-└── README.md                # هذا الملف
+اجعل داكرتك المؤقتة قوية في فهم المشروع لان لا اريد اخسر توكن كثير لاننا جمعية خيرية تخدم فئة محتاجه

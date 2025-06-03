@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, Search, Filter, SortAsc, SortDesc, List, LayoutGrid, Clock, ClipboardList, User, Building, Flag, X, AlertCircle as CircleAlert, RefreshCw, CheckCircle, Pause, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Plus, Search, Filter, SortAsc, SortDesc, List, LayoutGrid, Clock, ClipboardList, User, Building, Flag, X, AlertCircle as CircleAlert, RefreshCw, CheckCircle, Pause, Calendar } from 'lucide-react';
 import { useTaskList } from '../hooks/useTaskList';
 import { useTaskActions } from '../hooks/useTaskActions';
 import { TaskCard } from './TaskCard';
@@ -15,7 +15,7 @@ import { UserSelector } from './UserSelector';
  */
 export function TasksList() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, dbUser } = useAuth();
   
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
@@ -226,6 +226,48 @@ export function TasksList() {
             </span>
             <span className="text-sm font-medium">متأخرة</span>
             <span className="text-2xl font-bold mt-1">{taskSummary.overdue}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* فلتر لتصنيف نوع المهام - المهام المكلف بها أو المهام التي أصدرتها */}
+      <div className="mb-6 p-4 bg-white dark:bg-gray-900 rounded-lg border dark:border-gray-800 shadow-sm">
+        <h3 className="text-sm font-medium mb-3">تصنيف المهام</h3>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => updateFilters({ taskType: 'all' })}
+            className={`px-4 py-2 text-sm rounded-lg border ${
+              filters.taskType === 'all'
+                ? 'bg-primary text-white border-primary'
+                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            <ClipboardList className="h-4 w-4 inline-block ml-1" />
+            جميع المهام
+          </button>
+          
+          <button
+            onClick={() => updateFilters({ taskType: 'assigned_to_me' })}
+            className={`px-4 py-2 text-sm rounded-lg border ${
+              filters.taskType === 'assigned_to_me'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            <User className="h-4 w-4 inline-block ml-1" />
+            المهام المكلف بها ({taskSummary.assignedToMe})
+          </button>
+          
+          <button
+            onClick={() => updateFilters({ taskType: 'created_by_me' })}
+            className={`px-4 py-2 text-sm rounded-lg border ${
+              filters.taskType === 'created_by_me'
+                ? 'bg-green-600 text-white border-green-600'
+                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            <Plus className="h-4 w-4 inline-block ml-1" />
+            المهام التي أصدرتها ({taskSummary.createdByMe})
           </button>
         </div>
       </div>
@@ -443,7 +485,7 @@ export function TasksList() {
         <div className="bg-red-50 dark:bg-red-900/20 border dark:border-red-900/30 rounded-lg p-6 text-center text-red-700 dark:text-red-400">
           <CircleAlert className="h-10 w-10 mx-auto mb-4" />
           <h3 className="text-lg font-bold mb-2">خطأ في تحميل المهام</h3>
-          <p className="mb-4">حدث خطأ أثناء محاولة تحميل المهام. يرجى المحاولة مرة أخرى.</p>
+          <p className="mb-4">حدث خطأ أثناء محاولة تحميل المهام. يرجى المحاولة مرة أخرى لاحقاً.</p>
           <button
             onClick={() => refetchTasks()}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 mx-auto"
@@ -456,7 +498,7 @@ export function TasksList() {
         <EmptyState
           title="لا توجد مهام"
           description={
-            filters.status !== 'all' || filters.priority !== 'all' || filters.assigned_to || filters.branch_id || filters.timeframe !== 'all' || filters.search
+            filters.status !== 'all' || filters.priority !== 'all' || filters.assigned_to || filters.branch_id || filters.timeframe !== 'all' || filters.search || filters.taskType !== 'all'
               ? 'لا توجد مهام تطابق معايير البحث الحالية'
               : 'لا توجد مهام متاحة حاليًا. ابدأ بإنشاء مهمة جديدة.'
           }
@@ -467,7 +509,7 @@ export function TasksList() {
             icon: <Plus className="h-4 w-4" />
           }}
           secondaryAction={
-            filters.status !== 'all' || filters.priority !== 'all' || filters.assigned_to || filters.branch_id || filters.timeframe !== 'all' || filters.search
+            filters.status !== 'all' || filters.priority !== 'all' || filters.assigned_to || filters.branch_id || filters.timeframe !== 'all' || filters.search || filters.taskType !== 'all'
               ? {
                   label: 'إعادة ضبط الفلاتر',
                   onClick: resetFilters
@@ -482,7 +524,7 @@ export function TasksList() {
             : 'space-y-4'
           }
         `}>
-          {sortedTasks.map(task => (
+          {sortedTasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}

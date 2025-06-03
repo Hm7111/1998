@@ -13,7 +13,10 @@
     "postbuild": "node scripts/postbuild.js",
     "cleanup": "node deep-cleanup.js",
     "archive-migrations": "node archive-migrations.js",
-    "restore-migrations": "node restore-migrations.js"
+    "restore-migrations": "node restore-migrations.js",
+    "optimize": "node optimize-project.js",
+    "modular": "node modular-splitter.js",
+    "manage-migrations": "node migration-manager.js"
   },
   "dependencies": {
     "@fontsource/cairo": "^5.0.8",

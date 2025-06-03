@@ -772,7 +772,7 @@ export function ViewableLetterEditor() {
             </div>
             <div>
               <p className="text-sm text-gray-500 mb-1">تاريخ الإنشاء</p>
-              <p>{new Date(letter.created_at).toLocaleDateString('ar')}</p>
+              <p>{new Date(letter.created_at).toLocaleDateString()}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500 mb-1">الحالة</p>

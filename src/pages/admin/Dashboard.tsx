@@ -23,7 +23,6 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import { motion } from 'framer-motion';
-import moment from 'moment-hijri';
 import { BranchSelector } from '../../components/branches/BranchSelector';
 import { useToast } from '../../hooks/useToast';
 
@@ -238,11 +237,6 @@ export function Dashboard() {
     { id: 3, title: 'إضافة توقيع إلكتروني', status: 'pending', dueDate: '2025-06-20' }
   ];
 
-  // تحويل التاريخ الميلادي إلى هجري
-  const getHijriDate = (date: string) => {
-    return moment(date).format('iYYYY/iM/iD');
-  };
-
   if (statsLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
@@ -271,9 +265,7 @@ export function Dashboard() {
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-2 flex items-center">
               <Calendar className="h-4 w-4 ml-2" />
-              <span>{new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-              <span className="mx-2">|</span>
-              <span>{getHijriDate(new Date().toISOString())}</span>
+              <span>{new Date().toLocaleDateString()}</span>
             </p>
           </div>
 
@@ -597,7 +589,7 @@ export function Dashboard() {
                       </div>
                       
                       <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        {moment(letter.created_at).format('iYYYY/iM/iD')} - {new Date(letter.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(letter.created_at).toLocaleDateString()} - {new Date(letter.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
                     
@@ -672,7 +664,7 @@ export function Dashboard() {
                       </p>
                       
                       <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        تاريخ الاستحقاق: {getHijriDate(task.dueDate)}
+                        تاريخ الاستحقاق: {new Date(task.dueDate).toLocaleDateString()}
                       </p>
                     </div>
                     

@@ -106,7 +106,7 @@ export function VerifyLetter() {
                 <div>
                   <div className="text-sm font-medium text-gray-500 mb-1">تاريخ الإصدار</div>
                   <div className="text-gray-900">
-                    {new Date(letter.created_at).toLocaleDateString('ar-SA')}
+                    {new Date(letter.created_at).toLocaleDateString()}
                   </div>
                 </div>
 

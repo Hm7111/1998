@@ -180,13 +180,13 @@ export function LettersList({}: LetterListProps) {
             <div className="flex gap-3 justify-end">
               <button 
                 onClick={() => setShowDeleteConfirm(null)}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded"
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg"
               >
                 إلغاء
               </button>
               <button 
                 onClick={() => handleDelete(showDeleteConfirm)}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
                 تأكيد الحذف
               </button>

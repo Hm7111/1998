@@ -5,7 +5,6 @@ import { useToast } from '../../hooks/useToast';
 import { Letter } from '../../types/database';
 import { exportToPDF } from '../../lib/pdf-export';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
-import moment from 'moment-hijri';
 
 interface ViewLetterModalProps {
   isOpen: boolean;
@@ -111,7 +110,20 @@ export function ViewLetterModal({ isOpen, onClose, letterId, requestId }: ViewLe
             updated_at: new Date().toISOString(),
             description: '',
             variables: [],
-            zones: []
+            zones: [],
+            // إضافة مواضع العناصر المخصصة إذا كانت متوفرة
+            letter_elements: letterData.letter_elements || {
+              letterNumber: { x: 85, y: 25, width: 32, alignment: 'right', enabled: true },
+              letterDate: { x: 40, y: 60, width: 120, alignment: 'center', enabled: true },
+              signature: { x: 40, y: 700, width: 150, height: 80, alignment: 'center', enabled: true }
+            },
+            // إضافة موضع QR إذا كان متوفر
+            qr_position: letterData.qr_position || {
+              x: 40,
+              y: 760,
+              size: 80,
+              alignment: 'right'
+            }
           }
         };
         
@@ -202,6 +214,21 @@ export function ViewLetterModal({ isOpen, onClose, letterId, requestId }: ViewLe
   // Get template data from template_snapshot if available
   const templateData = letter?.template_snapshot || letter?.letter_templates;
 
+  // Get custom element positions from template if available
+  const letterElements = templateData?.letter_elements || {
+    letterNumber: { x: 85, y: 25, width: 32, alignment: 'right', enabled: true },
+    letterDate: { x: 40, y: 60, width: 120, alignment: 'center', enabled: true },
+    signature: { x: 40, y: 700, width: 150, height: 80, alignment: 'center', enabled: true }
+  };
+  
+  // Get QR position from template or default
+  const qrPosition = templateData?.qr_position || {
+    x: 40,
+    y: 760,
+    size: 80,
+    alignment: 'right'
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center overflow-auto p-4 backdrop-blur-sm" onClick={onClose}>
       <ErrorBoundary>
@@ -263,15 +290,15 @@ export function ViewLetterModal({ isOpen, onClose, letterId, requestId }: ViewLe
                       <p className="font-medium text-gray-900 dark:text-white">{letter.content.to || 'غير محدد'}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">الرقم</p>
-                      <p className="font-medium text-gray-900 dark:text-white font-mono">{letter.number}/{letter.year}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">مرجع الخطاب</p>
+                      <p className="font-medium text-gray-900 dark:text-white font-mono">{letter.letter_reference || `${letter.branch_code || ''}-${letter.number}/${letter.year}`}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">التاريخ</p>
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-gray-400" />
                         <p className="font-medium text-gray-900 dark:text-white">
-                          {letter.content.date || moment(letter.created_at).format('iYYYY/iM/iD')}
+                          {letter.content.date || new Date(letter.created_at).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
@@ -297,12 +324,39 @@ export function ViewLetterModal({ isOpen, onClose, letterId, requestId }: ViewLe
                   direction: 'rtl'
                 }}>
                   <div className="absolute inset-0">
-                    <div className="absolute top-[25px] left-[85px] w-10 p-1 text-sm font-semibold text-center">
-                      {letter.number}
-                    </div>
-                    <div className="absolute top-[60px] left-[40px] w-32 p-1 text-sm font-semibold text-center">
-                      {letter.content.date}
-                    </div>
+                    {/* مرجع الخطاب المركب - استخدام الموضع المخصص من letterElements */}
+                    {letterElements.letterNumber.enabled && (
+                      <div 
+                        className="absolute"
+                        style={{
+                          top: `${letterElements.letterNumber.y}px`,
+                          left: `${letterElements.letterNumber.x}px`,
+                          width: `${letterElements.letterNumber.width}px`,
+                          textAlign: letterElements.letterNumber.alignment as "left" | "right" | "center"
+                        }}
+                      >
+                        <span className="font-medium text-sm">
+                          {letter.letter_reference || `${letter.branch_code || ''}-${letter.number}/${letter.year}`}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* تاريخ الخطاب - استخدام الموضع المخصص */}
+                    {letterElements.letterDate.enabled && (
+                      <div 
+                        className="absolute"
+                        style={{
+                          top: `${letterElements.letterDate.y}px`,
+                          left: `${letterElements.letterDate.x}px`,
+                          width: `${letterElements.letterDate.width}px`,
+                          textAlign: letterElements.letterDate.alignment as "left" | "right" | "center"
+                        }}
+                      >
+                        {letter.content.date}
+                      </div>
+                    )}
+                    
+                    {/* محتوى الخطاب */}
                     <div 
                       dangerouslySetInnerHTML={{ __html: letter.content.body || '' }}
                       className="absolute top-[120px] right-[35px] left-[40px] bottom-[120px] p-6 text-sm bg-transparent overflow-y-auto"
@@ -317,12 +371,41 @@ export function ViewLetterModal({ isOpen, onClose, letterId, requestId }: ViewLe
                       }}
                     />
                     
-                    {/* QR code */}
-                    {letter.verification_url && (
-                      <div className="absolute bottom-[40px] right-[40px] flex flex-col items-center">
+                    {/* التوقيع - إذا كان الخطاب معتمداً */}
+                    {letter.signature_id && letter.workflow_status === 'approved' && letterElements.signature.enabled && (
+                      <div 
+                        className="absolute flex flex-col items-center"
+                        style={{
+                          top: letterElements.signature.y + 'px',
+                          left: letterElements.signature.x + 'px',
+                          width: letterElements.signature.width + 'px',
+                          height: letterElements.signature.height + 'px',
+                          textAlign: letterElements.signature.alignment as "left" | "right" | "center"
+                        }}
+                      >
+                        <img
+                          src="/signature-placeholder.png" // ستحتاج لاستبدال هذا برابط التوقيع الفعلي
+                          alt="توقيع المعتمد"
+                          className="h-20 object-contain"
+                        />
+                        <span className="text-xs text-gray-800 mt-1 font-bold">توقيع المعتمد</span>
+                      </div>
+                    )}
+                    
+                    {/* رمز QR - موضع مخصص */}
+                    {letter.verification_url && qrPosition && (
+                      <div 
+                        className="absolute flex flex-col items-center"
+                        style={{
+                          top: qrPosition.y + 'px',
+                          left: qrPosition.x + 'px',
+                          width: qrPosition.size + 'px',
+                          height: qrPosition.size + 'px'
+                        }}
+                      >
                         <QRCode
                           value={`${window.location.origin}/verify/${letter.verification_url}`}
-                          size={80}
+                          size={qrPosition.size || 80}
                           level="H"
                           includeMargin
                           className="bg-white p-1.5 rounded"

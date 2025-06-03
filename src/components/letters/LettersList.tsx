@@ -241,7 +241,7 @@ export function LettersList({}: LetterListProps) {
               <span>فلترة</span>
             </button>
             
-            <div className="absolute left-0 mt-1 hidden z-10 bg-white dark:bg-gray-900 shadow-lg border dark:border-gray-700 rounded-lg w-48">
+            <div className="absolute left-0 mt-1 hidden z-10 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg overflow-hidden w-48">
               <div className="p-3">
                 <div className="mb-2">
                   <h4 className="text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">حالة الخطاب</h4>
@@ -355,7 +355,7 @@ export function LettersList({}: LetterListProps) {
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg overflow-hidden border dark:border-gray-800">
           {/* رأس الجدول */}
-          <div className="grid grid-cols-7 bg-gray-50 dark:bg-gray-800 border-b dark:border-gray-700 py-3">
+          <div className="grid grid-cols-8 bg-gray-50 dark:bg-gray-800 border-b dark:border-gray-700 py-3">
             <div className="px-4 text-center font-medium text-primary flex items-center justify-center gap-1 cursor-pointer"
               onClick={() => {
                 if (sortField === 'number') {
@@ -382,6 +382,22 @@ export function LettersList({}: LetterListProps) {
               الفرع
             </div>
 
+            <div className="px-4 text-center font-medium text-primary border-r dark:border-gray-700"
+              onClick={() => {
+                if (sortField === 'created_at') {
+                  setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                } else {
+                  setSortField('created_at');
+                  setSortDirection('desc');
+                }
+              }}
+            >
+              <div className="flex items-center justify-center gap-1 cursor-pointer">
+                <span>تاريخ الخطاب</span>
+                {sortField === 'created_at' && (sortDirection === 'asc' ? <SortAsc className="h-3 w-3" /> : <SortDesc className="h-3 w-3" />)}
+              </div>
+            </div>
+
             <div className="px-4 text-center font-medium text-primary border-r dark:border-gray-700">
               الحالة
             </div>
@@ -394,7 +410,7 @@ export function LettersList({}: LetterListProps) {
           {/* بيانات الخطابات */}
           <div>
             {filteredLetters.map((letter) => (
-              <div key={letter.id} className="grid grid-cols-7 hover:bg-gray-50 dark:hover:bg-gray-800/50 border-b dark:border-gray-700 transition-colors">
+              <div key={letter.id} className="grid grid-cols-8 hover:bg-gray-50 dark:hover:bg-gray-800/50 border-b dark:border-gray-700 transition-colors">
                 <div className="px-4 py-4 flex items-center justify-center border-r dark:border-gray-700">
                   <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg text-blue-800 dark:text-blue-300 text-sm font-mono text-center">
                     {letter.letter_reference || `${letter.branch_code || ''}-${letter.number}/${letter.year}`}
@@ -418,6 +434,18 @@ export function LettersList({}: LetterListProps) {
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-lg text-xs">
                       <Building className="h-3 w-3 text-gray-500" />
                       {letter.branch_code || 'GEN'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="px-4 py-4 flex items-center justify-center border-r dark:border-gray-700">
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300">
+                      <Calendar className="h-3.5 w-3.5 text-gray-500" />
+                      <span>{new Date(letter.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {new Date(letter.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 </div>

@@ -177,7 +177,7 @@ export function Login() {
               مرحباً بك
             </h1>
             <p className="text-gray-600 dark:text-gray-400 animate-fadeIn" style={{ animationDelay: '0.4s' }}>
-              قم بتسجيل الدخول للوصول إلى نظام إدارة الخطابات
+              قم بتسجيل الدخول للوصول إلى النظام
             </p>
           </div>
 

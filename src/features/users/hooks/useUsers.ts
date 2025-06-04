@@ -62,7 +62,8 @@ export function useUsers() {
         const errorData = await response.json();
         // معالجة خطأ البريد المكرر بشكل واضح
         if (errorData.error && (
-          errorData.error.includes('already registered') ||
+          errorData.error.includes('البريد الإلكتروني مسجل مسبقاً في نظام المصادقة') ||
+          errorData.error.includes('already registered') || 
           errorData.error.includes('duplicate key') ||
           errorData.error.includes('users_email_key')
         )) {

@@ -1,12 +1,20 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useToast } from '../../../hooks/useToast';
+import { useQueryClient } from '@tanstack/react-query';
+import { User } from '../types';
 
+/**
+ * هوك متخصص لإدارة المستخدمين
+ */
 export function useUsers() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // إنشاء مستخدم جديد
+  /**
+   * إنشاء مستخدم جديد
+   */
   const createUser = useCallback(async (userData: any) => {
     try {
       setIsLoading(true);
@@ -18,10 +26,6 @@ export function useUsers() {
         .eq('email', userData.email)
         .maybeSingle();
 
-      if (checkError) {
-        console.error('Error checking existing user:', checkError);
-      }
-
       if (existingUser) {
         toast({
           title: 'خطأ',
@@ -31,23 +35,28 @@ export function useUsers() {
         return false;
       }
 
-      // Call the Edge Function to create user
+      // استدعاء Edge Function لإنشاء المستخدم
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
         },
-        body: JSON.stringify(userData)
+        body: JSON.stringify({
+          ...userData,
+          // تحويل الصلاحيات إلى الشكل المناسب
+          permissions: userData.permissions ? 
+            Array.isArray(userData.permissions) ? 
+              userData.permissions : 
+              [userData.permissions] : 
+            []
+        })
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        // Handle specific error cases from the Edge Function
-        if (errorData.error && errorData.error.includes('already been registered')) {
+        if (errorData.error && errorData.error.includes('already registered')) {
           throw new Error('البريد الإلكتروني مسجل مسبقاً');
-        } else if (errorData.error && errorData.error.includes('Unauthorized')) {
-          throw new Error('غير مصرح لك بإنشاء مستخدمين');
         } else {
           throw new Error(errorData.error || 'فشل إنشاء المستخدم');
         }
@@ -56,8 +65,11 @@ export function useUsers() {
       const result = await response.json();
       
       if (!result.user) {
-        throw new Error('لم يتم إنشاء المستخدم بشكل صحيح');
+        throw new Error('فشل في إنشاء المستخدم بشكل صحيح');
       }
+
+      // تحديث ذاكرة التخزين المؤقت للاستعلامات
+      queryClient.invalidateQueries({ queryKey: ['users'] });
 
       toast({
         title: 'تم الإنشاء',
@@ -77,14 +89,16 @@ export function useUsers() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, queryClient]);
 
-  // تحديث مستخدم موجود
+  /**
+   * تحديث مستخدم موجود
+   */
   const updateUser = useCallback(async (userId: string, userData: any) => {
     try {
       setIsLoading(true);
 
-      // تحديث بيانات المستخدم
+      // تحديث بيانات المستخدم في الجدول
       const { error } = await supabase
         .from('users')
         .update({
@@ -101,13 +115,28 @@ export function useUsers() {
 
       // تحديث كلمة المرور إذا تم تغييرها
       if (userData.password) {
-        const { error: passwordError } = await supabase.auth.admin.updateUserById(
-          userId,
-          { password: userData.password }
-        );
-
-        if (passwordError) throw passwordError;
+        // استخدام Edge Function لتحديث كلمة المرور
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({
+            userId,
+            password: userData.password
+          })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'فشل في تحديث كلمة المرور');
+        }
       }
+
+      // تحديث ذاكرة التخزين المؤقت للاستعلامات
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['user', userId] });
 
       toast({
         title: 'تم التحديث',
@@ -127,62 +156,151 @@ export function useUsers() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, queryClient]);
 
-  // حذف المستخدمين غير النشطين
-  const cleanupInactiveUsers = useCallback(async (olderThanDays = 90) => {
+  /**
+   * تغيير حالة تنشيط المستخدم
+   */
+  const toggleUserStatus = useCallback(async (userId: string, isActive: boolean) => {
     try {
       setIsLoading(true);
-      
-      // حساب التاريخ قبل X يوم
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
-      
-      // الحصول على المستخدمين غير النشطين القديمين
-      const { data: inactiveUsers, error: fetchError } = await supabase
+
+      const { error } = await supabase
         .from('users')
-        .select('id')
-        .eq('is_active', false)
-        .lt('updated_at', cutoffDate.toISOString());
-      
-      if (fetchError) throw fetchError;
-      
-      if (!inactiveUsers || inactiveUsers.length === 0) {
-        return { count: 0, message: 'لا يوجد مستخدمين غير نشطين للتنظيف' };
-      }
-      
-      // حذف المستخدمين غير النشطين
-      const userIds = inactiveUsers.map(user => user.id);
-      
-      // حذف من جدول المستخدمين
-      const { error: deleteError } = await supabase
-        .from('users')
-        .delete()
-        .in('id', userIds);
-      
-      if (deleteError) throw deleteError;
-      
-      // حذف من نظام المصادقة
-      for (const userId of userIds) {
-        await supabase.auth.admin.deleteUser(userId);
-      }
-      
-      return { 
-        count: userIds.length, 
-        message: `تم حذف ${userIds.length} مستخدم غير نشط بنجاح` 
-      };
+        .update({
+          is_active: isActive,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      // تحديث ذاكرة التخزين المؤقت للاستعلامات
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['user', userId] });
+
+      toast({
+        title: isActive ? 'تم تنشيط المستخدم' : 'تم تعطيل المستخدم',
+        description: isActive ? 'تم تنشيط حساب المستخدم بنجاح' : 'تم تعطيل حساب المستخدم بنجاح',
+        type: 'success'
+      });
+
+      return true;
     } catch (error) {
-      console.error('Error cleaning up inactive users:', error);
-      throw error;
+      console.error('Error toggling user status:', error);
+      toast({
+        title: 'خطأ',
+        description: error instanceof Error ? error.message : 'حدث خطأ أثناء تحديث حالة المستخدم',
+        type: 'error'
+      });
+      return false;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [toast, queryClient]);
+
+  /**
+   * استرداد كلمة مرور المستخدم
+   */
+  const resetUserPassword = useCallback(async (userId: string) => {
+    try {
+      setIsLoading(true);
+
+      // البريد الإلكتروني للمستخدم مطلوب لإرسال إعادة تعيين كلمة المرور
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('id', userId)
+        .single();
+
+      if (userError) throw userError;
+      if (!userData) throw new Error('لم يتم العثور على المستخدم');
+
+      // استخدام Edge Function لإعادة تعيين كلمة المرور
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({
+          action: 'reset_password',
+          email: userData.email
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'فشل في إرسال رابط إعادة تعيين كلمة المرور');
+      }
+
+      toast({
+        title: 'تم الإرسال',
+        description: 'تم إرسال رابط إعادة تعيين كلمة المرور إلى بريد المستخدم الإلكتروني',
+        type: 'success'
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      toast({
+        title: 'خطأ',
+        description: error instanceof Error ? error.message : 'حدث خطأ أثناء إعادة تعيين كلمة المرور',
+        type: 'error'
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  /**
+   * تحديث صلاحيات المستخدم
+   */
+  const updateUserPermissions = useCallback(async (userId: string, permissions: any[]) => {
+    try {
+      setIsLoading(true);
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          permissions,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      // تحديث ذاكرة التخزين المؤقت للاستعلامات
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['user', userId] });
+
+      toast({
+        title: 'تم التحديث',
+        description: 'تم تحديث صلاحيات المستخدم بنجاح',
+        type: 'success'
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error updating user permissions:', error);
+      toast({
+        title: 'خطأ',
+        description: error instanceof Error ? error.message : 'حدث خطأ أثناء تحديث صلاحيات المستخدم',
+        type: 'error'
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast, queryClient]);
 
   return {
     isLoading,
     createUser,
     updateUser,
-    cleanupInactiveUsers
+    toggleUserStatus,
+    resetUserPassword,
+    updateUserPermissions
   };
 }

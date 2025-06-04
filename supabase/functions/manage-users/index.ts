@@ -7,13 +7,13 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-interface CreateUserPayload {
+interface UserPayload {
   email: string;
-  password: string;
+  password?: string;
   full_name: string;
   role: string;
   branch_id?: string;
@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
 
   try {
     // Verify request method
-    if (req.method !== 'POST') {
+    if (!['POST', 'PUT', 'DELETE'].includes(req.method)) {
       throw new Error('Method not allowed');
     }
 
@@ -61,67 +61,16 @@ Deno.serve(async (req) => {
       throw new Error('Unauthorized - Admin access required');
     }
 
-    // Parse request body
-    const payload: CreateUserPayload = await req.json();
-
-    // Check if the user already exists
-    const { data: existingUser, error: checkError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', payload.email)
-      .maybeSingle();
-
-    if (existingUser) {
-      throw new Error('User already exists');
+    // Handle different HTTP methods
+    if (req.method === 'POST') {
+      return await handlePostRequest(req);
+    } else if (req.method === 'PUT') {
+      return await handlePutRequest(req);
+    } else if (req.method === 'DELETE') {
+      return await handleDeleteRequest(req);
     }
 
-    // Create user in Auth
-    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-      email: payload.email,
-      password: payload.password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: payload.full_name,
-      }
-    });
-
-    if (createError) {
-      throw createError;
-    }
-
-    if (!newUser.user) {
-      throw new Error('Failed to create user');
-    }
-
-    // Insert user data into users table
-    const { error: insertError } = await supabase
-      .from('users')
-      .insert({
-        id: newUser.user.id,
-        email: payload.email,
-        full_name: payload.full_name,
-        role: payload.role,
-        branch_id: payload.branch_id,
-        permissions: payload.permissions,
-        is_active: payload.is_active ?? true
-      });
-
-    if (insertError) {
-      // Cleanup: delete the auth user if db insert fails
-      await supabase.auth.admin.deleteUser(newUser.user.id);
-      throw insertError;
-    }
-
-    return new Response(
-      JSON.stringify({ 
-        message: 'User created successfully',
-        user: newUser.user
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    );
+    throw new Error('Method not implemented');
 
   } catch (error) {
     const message = error instanceof Error ? error.message : 'An unknown error occurred';
@@ -134,3 +83,213 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+/**
+ * معالجة طلب POST (إنشاء مستخدم جديد)
+ */
+async function handlePostRequest(req: Request) {
+  const payload = await req.json();
+
+  // التعامل مع طلبات خاصة
+  if (payload.action === 'reset_password') {
+    return await handlePasswordReset(payload.email);
+  }
+
+  // التحقق من وجود المستخدم قبل إنشائه
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', payload.email)
+    .maybeSingle();
+
+  if (existingUser) {
+    return new Response(
+      JSON.stringify({ error: 'البريد الإلكتروني مسجل مسبقاً' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
+  }
+
+  // إنشاء المستخدم في نظام المصادقة
+  const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+    email: payload.email,
+    password: payload.password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: payload.full_name,
+    }
+  });
+
+  if (createError) {
+    return new Response(
+      JSON.stringify({ error: createError.message }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
+  }
+
+  if (!newUser.user) {
+    return new Response(
+      JSON.stringify({ error: 'Failed to create user' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
+  }
+
+  // إدخال بيانات المستخدم في جدول المستخدمين
+  const { error: insertError } = await supabase
+    .from('users')
+    .insert({
+      id: newUser.user.id,
+      email: payload.email,
+      full_name: payload.full_name,
+      role: payload.role,
+      branch_id: payload.branch_id,
+      permissions: payload.permissions,
+      is_active: payload.is_active ?? true
+    });
+
+  if (insertError) {
+    // تنظيف: حذف المستخدم من نظام المصادقة إذا فشل الإدخال
+    await supabase.auth.admin.deleteUser(newUser.user.id);
+    
+    return new Response(
+      JSON.stringify({ error: insertError.message }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
+  }
+
+  return new Response(
+    JSON.stringify({ 
+      message: 'تم إنشاء المستخدم بنجاح',
+      user: newUser.user
+    }),
+    {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    }
+  );
+}
+
+/**
+ * معالجة طلب PUT (تحديث مستخدم)
+ */
+async function handlePutRequest(req: Request) {
+  const { userId, password } = await req.json();
+
+  if (!userId) {
+    return new Response(
+      JSON.stringify({ error: 'User ID is required' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
+  }
+
+  if (password) {
+    const { error: passwordError } = await supabase.auth.admin.updateUserById(
+      userId,
+      { password }
+    );
+
+    if (passwordError) {
+      return new Response(
+        JSON.stringify({ error: passwordError.message }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
+  }
+
+  return new Response(
+    JSON.stringify({ message: 'تم تحديث المستخدم بنجاح' }),
+    {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    }
+  );
+}
+
+/**
+ * معالجة طلب DELETE (حذف مستخدم)
+ */
+async function handleDeleteRequest(req: Request) {
+  const { userId } = await req.json();
+
+  if (!userId) {
+    return new Response(
+      JSON.stringify({ error: 'User ID is required' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
+  }
+
+  const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
+
+  if (deleteError) {
+    return new Response(
+      JSON.stringify({ error: deleteError.message }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
+  }
+
+  return new Response(
+    JSON.stringify({ message: 'تم حذف المستخدم بنجاح' }),
+    {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    }
+  );
+}
+
+/**
+ * معالجة طلب إعادة تعيين كلمة المرور
+ */
+async function handlePasswordReset(email: string) {
+  if (!email) {
+    return new Response(
+      JSON.stringify({ error: 'Email is required' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
+  }
+
+  const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+
+  if (resetError) {
+    return new Response(
+      JSON.stringify({ error: resetError.message }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
+  }
+
+  return new Response(
+    JSON.stringify({ message: 'تم إرسال رابط إعادة تعيين كلمة المرور بنجاح' }),
+    {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    }
+  );
+}

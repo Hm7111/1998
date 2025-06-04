@@ -2,10 +2,22 @@ import { FileText, Home, Settings, Users, History, Building, Shield, Key, Clipbo
 import { Link, useLocation } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
+import { useQuery } from '@tanstack/react-query'
+import { useWorkflow } from '../../hooks/useWorkflow'
 
 export function Sidebar() {
   const location = useLocation()
   const { isAdmin, hasPermission } = useAuth()
+  const { getPendingApprovals } = useWorkflow()
+  
+  // Fetch pending approvals for notification count
+  const { data: pendingApprovals = [] } = useQuery({
+    queryKey: ['pendingApprovals'],
+    queryFn: getPendingApprovals
+  })
+  
+  // Define the unreadNotifications variable based on pending approvals count
+  const unreadNotifications = pendingApprovals?.length || 0
 
   // Define navigation items with permission checks
   const getNavigationItems = () => {

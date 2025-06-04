@@ -96,8 +96,20 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
   };
 
   // تعيين المهمة للمستخدم
-  const handleAssignToUser = (userId: string | null) => {
-    setFormData(prev => ({ ...prev, assigned_to: userId }));
+  const handleAssignToUser = (userId: string | null, userData?: any) => {
+    setFormData(prev => {
+      // Create the updates object
+      const updates: Partial<TaskFormData> = {
+        assigned_to: userId
+      };
+      
+      // If we have user data with branch info, automatically update the branch ID
+      if (userData?.branch?.id && !isEditMode) {
+        updates.branch_id = userData.branch.id;
+      }
+      
+      return { ...prev, ...updates };
+    });
     
     // مسح الخطأ عند تعيين المستخدم
     if (errors.assigned_to) {
@@ -169,12 +181,13 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
 
           <div>
             <label htmlFor="branch_id" className="block text-sm font-medium mb-1">
-              الفرع
+              الفرع {formData.assigned_to && "(تم التحديد تلقائيًا من الموظف)"}
             </label>
             <BranchSelector
               value={formData.branch_id}
               onChange={handleSelectBranch}
               showAll
+              disabled={formData.assigned_to !== null && !isEditMode}
             />
           </div>
         </div>

@@ -5,7 +5,7 @@ import { Search, User } from 'lucide-react';
 
 interface UserSelectorProps {
   value: string;
-  onChange: (userId: string | null) => void;
+  onChange: (userId: string | null, userData?: any) => void;
   error?: string;
   placeholder?: string;
   className?: string;
@@ -67,9 +67,10 @@ export function UserSelector({
   }, [value]);
   
   // اختيار مستخدم
-  const handleSelectUser = (userId: string) => {
-    setSelectedUserId(userId);
-    onChange(userId);
+  const handleSelectUser = (user: any) => {
+    setSelectedUserId(user.id);
+    // Pass the entire user object to allow access to branch information
+    onChange(user.id, user);
     setShowDropdown(false);
   };
 
@@ -142,7 +143,7 @@ export function UserSelector({
                       }`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleSelectUser(user.id);
+                        handleSelectUser(user);
                       }}
                     >
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-2 ${

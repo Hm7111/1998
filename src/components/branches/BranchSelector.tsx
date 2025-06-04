@@ -63,7 +63,7 @@ export function BranchSelector({
         required={required}
         className={`w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors ${
           error ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : ''
-        } ${className}`}
+        } ${disabled ? 'bg-gray-100 dark:bg-gray-700 opacity-75' : ''} ${className}`}
       >
         <option value="">{isLoading ? 'جاري تحميل الفروع...' : placeholder}</option>
         {filteredBranches.map((branch) => (

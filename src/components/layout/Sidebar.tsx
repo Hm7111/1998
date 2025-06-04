@@ -111,7 +111,7 @@ export function Sidebar() {
       name: 'الإعدادات', 
       href: '/admin/settings', 
       icon: Settings, 
-      permissions: ['view:settings']
+      permissions: []
     });
     
     return items;
@@ -168,26 +168,28 @@ export function Sidebar() {
         </div>
         
         <div className="mt-auto px-3 pb-5 pt-3">
-          <div className="bg-[#1e293b] rounded-md p-3 text-xs text-gray-400">
-            <p className="flex items-center gap-2 mb-2 font-medium text-gray-300">
-              <ClipboardCheck className="h-4 w-4 text-primary" /> 
-              إحصائيات سريعة
-            </p>
-            <div className="space-y-1.5">
-              {hasPermission('view:letters') && (
-                <div className="flex justify-between">
-                  <span>الخطابات</span>
-                  <span className="font-medium text-gray-300">237</span>
-                </div>
-              )}
-            {hasPermission('view:approvals') && (
-              <div className="flex justify-between">
-                <span>طلبات معلقة</span>
-                <span className="font-medium text-gray-300">{unreadCount}</span>
+          {hasPermission('view:letters') && unreadCount > 0 && (
+            <div className="bg-[#1e293b] rounded-md p-3 text-xs text-gray-400">
+              <p className="flex items-center gap-2 mb-2 font-medium text-gray-300">
+                <ClipboardCheck className="h-4 w-4 text-primary" /> 
+                إحصائيات سريعة
+              </p>
+              <div className="space-y-1.5">
+                {hasPermission('view:letters') && (
+                  <div className="flex justify-between">
+                    <span>الخطابات</span>
+                    <span className="font-medium text-gray-300">237</span>
+                  </div>
+                )}
+                {hasPermission('view:approvals') && (
+                  <div className="flex justify-between">
+                    <span>طلبات معلقة</span>
+                    <span className="font-medium text-gray-300">{unreadCount}</span>
+                  </div>
+                )}
               </div>
-            )}
             </div>
-          </div>
+          )}
           
           <div className="mt-4 text-xs text-center text-gray-500">
             © {new Date().getFullYear()} الجمعية السعودية للإعاقة السمعية

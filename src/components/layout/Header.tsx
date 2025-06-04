@@ -54,7 +54,7 @@ export function Header() {
     return () => {
       // يتم التنظيف تلقائيًا عند إزالة المكون
     }
-  }, [theme])
+  }, [theme, hasPermission, navigate, registerHotkey, setTheme])
 
   async function handleLogout() {
     try {
@@ -243,20 +243,21 @@ export function Header() {
               </div>
             </button>
             
-            <button
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group relative text-gray-500 dark:text-gray-400"
-              onClick={() => setShowNotifications(!showNotifications)}
-              style={{ display: hasPermission('view:approvals') ? 'block' : 'none' }}
-            >
-              <div className="relative">
-                <Bell className="h-5 w-5" />
-                {unreadNotifications > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs flex items-center justify-center rounded-full">
-                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                  </span>
-                )}
-              </div>
-            </button>
+            {hasPermission('view:approvals') && (
+              <button
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group relative text-gray-500 dark:text-gray-400"
+                onClick={() => setShowNotifications(!showNotifications)}
+              >
+                <div className="relative">
+                  <Bell className="h-5 w-5" />
+                  {unreadNotifications > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs flex items-center justify-center rounded-full">
+                      {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                    </span>
+                  )}
+                </div>
+              </button>
+            )}
 
             <button
               onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
@@ -350,17 +351,8 @@ export function Header() {
             </div>
             
             <div className="p-2 text-gray-400">
-              {[
-                { name: 'الرئيسية', href: '/admin', icon: Home },
-                { name: 'الخطابات', href: '/admin/letters', icon: FileText },
-                { name: 'إنشاء خطاب جديد', href: '/admin/letters/new', icon: Plus },
-                { name: 'طلبات الموافقة', href: '/admin/approvals', icon: CheckCircle },
-                { name: 'المهام', href: '/admin/tasks', icon: Clock },
-                ...(dbUser?.role === 'admin' ? [
-                  { name: 'المستخدمين', href: '/admin/users', icon: Users }
-                ] : []),
-                { name: 'الإعدادات', href: '/admin/settings', icon: Settings },
-              ].map((item) => (
+              {/* موبايل: عرض نفس العناصر من القائمة الرئيسية */}
+              {navigation.map(item => (
                 <Link
                   key={item.href}
                   to={item.href}

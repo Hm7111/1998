@@ -76,7 +76,6 @@ export function Dashboard() {
 
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
     queryKey: ['letters-stats', period, dbUser?.id, selectedBranch],
-    enabled: !!dbUser?.id,
     // تفعيل الاستعلام فقط إذا كان المستخدم لديه صلاحيات الخطابات
     enabled: !!dbUser?.id && hasLetterPermissions,
     queryFn: async () => {
@@ -244,6 +243,15 @@ export function Dashboard() {
     { id: 3, title: 'إضافة توقيع إلكتروني', status: 'pending', dueDate: '2025-06-20' }
   ];
 
+  // إذا كان المستخدم لا يملك أي صلاحية للخطابات، نعرض لوحة تحكم مبسطة
+  const hasNoPermissions = !hasPermission('view:letters') && 
+                          !hasPermission('create:letters') && 
+                          !hasPermission('view:approvals') && 
+                          !hasPermission('view:approvals:own') &&
+                          !hasPermission('view:tasks') && 
+                          !hasPermission('view:tasks:assigned') && 
+                          !hasPermission('view:tasks:own');
+
   if (statsLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
@@ -254,6 +262,98 @@ export function Dashboard() {
     );
   }
 
+  if (hasNoPermissions) {
+    // لوحة تحكم للمستخدم بدون صلاحيات
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-8"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <span>{greeting}</span>
+                <span className="text-primary">{dbUser?.full_name}</span>
+                <Sparkles className="h-6 w-6 text-yellow-400 mr-2" />
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-2 flex items-center">
+                <Calendar className="h-4 w-4 ml-2" />
+                <span>{new Date().toLocaleDateString()}</span>
+              </p>
+            </div>
+          </div>
+        </motion.div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-4xl mx-auto">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full mb-6">
+              <Shield className="h-10 w-10 text-red-600 dark:text-red-400" />
+            </div>
+            <h2 className="text-2xl font-bold mb-4">ليس لديك صلاحيات كافية</h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
+              لم يتم منحك بعد أي صلاحيات في النظام. يرجى التواصل مع مدير النظام للحصول على الصلاحيات المناسبة.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg">
+              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                <Settings className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <span className="text-blue-800 dark:text-blue-300">معلومات المستخدم</span>
+              </h3>
+              <ul className="space-y-3 text-blue-700 dark:text-blue-300">
+                <li className="flex justify-between">
+                  <span>الاسم:</span>
+                  <span className="font-medium">{dbUser?.full_name}</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>البريد الإلكتروني:</span>
+                  <span className="font-medium">{dbUser?.email}</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>الفرع:</span>
+                  <span className="font-medium">{dbUser?.branch?.name || 'غير محدد'}</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>الدور:</span>
+                  <span className="font-medium">{dbUser?.role === 'admin' ? 'مدير' : 'مستخدم'}</span>
+                </li>
+              </ul>
+            </div>
+            
+            <div className="bg-purple-50 dark:bg-purple-900/20 p-6 rounded-lg">
+              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                <span className="text-purple-800 dark:text-purple-300">خيارات متاحة</span>
+              </h3>
+              <div className="space-y-3">
+                <p className="text-purple-700 dark:text-purple-300 mb-4">
+                  يمكنك الوصول إلى الصفحات التالية:
+                </p>
+                <Link 
+                  to="/admin/settings"
+                  className="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm text-purple-700 dark:text-purple-300 hover:shadow-md transition-shadow"
+                >
+                  <Settings className="h-5 w-5" />
+                  <span>الإعدادات الشخصية</span>
+                </Link>
+                <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-purple-700 dark:text-purple-300">
+                  <p className="text-sm">
+                    للحصول على صلاحيات إضافية، يرجى التواصل مع مسؤول النظام
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // لوحة تحكم للمستخدم ذو الصلاحيات
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       {/* Header Section - Welcome and Date */}
@@ -390,22 +490,22 @@ export function Dashboard() {
         )}
 
         {/* بطاقات إضافية للمستخدمين الذين ليس لديهم صلاحيات الخطابات */}
-        {!hasLetterPermissions && (
+        {!hasLetterPermissions && hasPermission('view:tasks') && (
           <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 opacity-10">
               <Shield className="h-32 w-32 -mt-6 -mr-6" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">الصلاحيات</h3>
+            <h3 className="text-lg font-semibold mb-2">المهام</h3>
             <p className="text-sm text-purple-100 mb-2">
-              يمكنك الوصول إلى الأقسام التي تملك صلاحيات لها فقط
+              يمكنك إدارة المهام المسندة إليك
             </p>
             <div className="mt-4">
               <button
-                onClick={() => navigate('/admin/settings')}
+                onClick={() => navigate('/admin/tasks')}
                 className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
               >
                 <Settings className="h-3.5 w-3.5" />
-                <span>الإعدادات</span>
+                <span>عرض المهام</span>
               </button>
             </div>
           </div>
@@ -458,6 +558,21 @@ export function Dashboard() {
               </button>
             )}
             
+            {hasPermission('view:tasks') && (
+              <button
+                onClick={() => navigate('/admin/tasks')}
+                className="w-full flex items-center p-4 rounded-lg transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50 border-2 border-gray-100 dark:border-gray-700"
+              >
+                <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center ml-4">
+                  <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="flex-1 text-right">
+                  <h3 className="font-semibold text-gray-800 dark:text-white">إدارة المهام</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">عرض وإدارة المهام المسندة إليك</p>
+                </div>
+              </button>
+            )}
+            
             {dbUser?.role === 'admin' && (
               <button
                 onClick={() => navigate('/admin/branches')}
@@ -478,76 +593,76 @@ export function Dashboard() {
         {/* Activity Chart */}
         {hasLetterPermissions ? (
           <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-sm lg:col-span-2 overflow-hidden"
-        >
-          <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-              <ActivitySquare className="h-5 w-5 ml-2 text-green-500" />
-              نشاط الخطابات
-              {selectedBranch && (
-                <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
-                  حسب الفرع
-                </span>
-              )}
-            </h2>
-            
-            <div>
-              <select className="text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg py-1.5 px-3">
-                <option>آخر 6 أشهر</option>
-                <option>آخر سنة</option>
-                <option>آخر 3 سنوات</option>
-              </select>
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm lg:col-span-2 overflow-hidden"
+          >
+            <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+                <ActivitySquare className="h-5 w-5 ml-2 text-green-500" />
+                نشاط الخطابات
+                {selectedBranch && (
+                  <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
+                    حسب الفرع
+                  </span>
+                )}
+              </h2>
+              
+              <div>
+                <select className="text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg py-1.5 px-3">
+                  <option>آخر 6 أشهر</option>
+                  <option>آخر سنة</option>
+                  <option>آخر 3 سنوات</option>
+                </select>
+              </div>
             </div>
-          </div>
-          
-          <div className="p-5">
-            <div className="h-60 w-full flex items-end justify-between space-x-2 rtl:space-x-reverse pr-6 pb-5 relative">
-              {/* Y-axis */}
-              <div className="absolute bottom-0 right-0 top-0 flex flex-col justify-between text-xs text-gray-500 dark:text-gray-400 py-5">
-                <span>100</span>
-                <span>75</span>
-                <span>50</span>
-                <span>25</span>
-                <span>0</span>
+            
+            <div className="p-5">
+              <div className="h-60 w-full flex items-end justify-between space-x-2 rtl:space-x-reverse pr-6 pb-5 relative">
+                {/* Y-axis */}
+                <div className="absolute bottom-0 right-0 top-0 flex flex-col justify-between text-xs text-gray-500 dark:text-gray-400 py-5">
+                  <span>100</span>
+                  <span>75</span>
+                  <span>50</span>
+                  <span>25</span>
+                  <span>0</span>
+                </div>
+                
+                {/* Chart bars */}
+                {chartData.datasets.map((value, index) => (
+                  <div key={index} className="flex-1 flex flex-col items-center">
+                    <div className="h-full w-full flex items-end justify-center">
+                      <div 
+                        className="w-14 bg-gradient-to-t from-blue-500 to-primary rounded-t-md transition-all duration-500"
+                        style={{ height: `${(value / 100) * 100}%` }}
+                      ></div>
+                    </div>
+                    <span className="mt-2 text-xs text-gray-600 dark:text-gray-400">{chartData.labels[index]}</span>
+                  </div>
+                ))}
               </div>
               
-              {/* Chart bars */}
-              {chartData.datasets.map((value, index) => (
-                <div key={index} className="flex-1 flex flex-col items-center">
-                  <div className="h-full w-full flex items-end justify-center">
-                    <div 
-                      className="w-14 bg-gradient-to-t from-blue-500 to-primary rounded-t-md transition-all duration-500"
-                      style={{ height: `${(value / 100) * 100}%` }}
-                    ></div>
-                  </div>
-                  <span className="mt-2 text-xs text-gray-600 dark:text-gray-400">{chartData.labels[index]}</span>
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">معدل الخطابات</div>
+                  <div className="text-xl font-bold">10.2 / شهر</div>
                 </div>
-              ))}
-            </div>
-            
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
-              <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                <div className="text-sm text-gray-600 dark:text-gray-400">معدل الخطابات</div>
-                <div className="text-xl font-bold">10.2 / شهر</div>
-              </div>
-              <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                <div className="text-sm text-gray-600 dark:text-gray-400">النمو</div>
-                <div className="text-xl font-bold text-green-500">+12.5%</div>
-              </div>
-              <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                <div className="text-sm text-gray-600 dark:text-gray-400">الشهر الأعلى</div>
-                <div className="text-xl font-bold">أبريل</div>
-              </div>
-              <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                <div className="text-sm text-gray-600 dark:text-gray-400">المجموع</div>
-                <div className="text-xl font-bold">{stats?.total || 0}</div>
+                <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">النمو</div>
+                  <div className="text-xl font-bold text-green-500">+12.5%</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">الشهر الأعلى</div>
+                  <div className="text-xl font-bold">أبريل</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">المجموع</div>
+                  <div className="text-xl font-bold">{stats?.total || 0}</div>
+                </div>
               </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
         ) : (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -581,105 +696,105 @@ export function Dashboard() {
         {/* Recent Letters */}
         {hasLetterPermissions ? (
           <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-sm lg:col-span-2 overflow-hidden"
-        >
-          <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-              <BookOpen className="h-5 w-5 ml-2 text-blue-500" />
-              آخر الخطابات
-              {selectedBranch && (
-                <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
-                  حسب الفرع
-                </span>
-              )}
-            </h2>
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm lg:col-span-2 overflow-hidden"
+          >
+            <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+                <BookOpen className="h-5 w-5 ml-2 text-blue-500" />
+                آخر الخطابات
+                {selectedBranch && (
+                  <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
+                    حسب الفرع
+                  </span>
+                )}
+              </h2>
+              
+              <button
+                onClick={() => navigate('/admin/letters')}
+                className="text-primary hover:text-primary/80 text-sm flex items-center gap-1"
+              >
+                <span>عرض الكل</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
             
-            <button
-              onClick={() => navigate('/admin/letters')}
-              className="text-primary hover:text-primary/80 text-sm flex items-center gap-1"
-            >
-              <span>عرض الكل</span>
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-          
-          <div className="p-5">
-            {lettersLoading ? (
-              <div className="flex justify-center py-10">
-                <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent"></div>
-              </div>
-            ) : recentLetters && recentLetters.length > 0 ? (
-              <div className="divide-y dark:divide-gray-700">
-                {recentLetters.map((letter: any) => (
-                  <div 
-                    key={letter.id}
-                    className="py-4 flex items-center gap-4 group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/20 p-2 rounded-lg transition-all"
-                    onClick={() => navigate(`/admin/letters/view/${letter.id}`)}
+            <div className="p-5">
+              {lettersLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent"></div>
+                </div>
+              ) : recentLetters && recentLetters.length > 0 ? (
+                <div className="divide-y dark:divide-gray-700">
+                  {recentLetters.map((letter: any) => (
+                    <div 
+                      key={letter.id}
+                      className="py-4 flex items-center gap-4 group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/20 p-2 rounded-lg transition-all"
+                      onClick={() => navigate(`/admin/letters/view/${letter.id}`)}
+                    >
+                      {letter.letter_templates?.image_url ? (
+                        <div className="h-14 w-14 rounded-lg border dark:border-gray-700 overflow-hidden flex-shrink-0">
+                          <img 
+                            src={letter.letter_templates.image_url} 
+                            alt={letter.letter_templates?.name || 'قالب الخطاب'}
+                            className="h-full w-full object-cover" 
+                          />
+                        </div>
+                      ) : (
+                        <div className="h-14 w-14 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                          <FileText className="h-6 w-6 text-gray-400" />
+                        </div>
+                      )}
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-semibold text-gray-800 dark:text-white truncate">
+                            {letter.content?.subject || 'بدون عنوان'}
+                          </h3>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            letter.status === 'completed' 
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          }`}>
+                            {letter.status === 'completed' ? 'مكتمل' : 'مسودة'}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center mt-1 text-sm text-gray-600 dark:text-gray-400">
+                          <span className="truncate">إلى: {letter.content?.to || 'غير محدد'}</span>
+                          <span className="mx-2">•</span>
+                          <span className="whitespace-nowrap">{letter.number}/{letter.year}</span>
+                        </div>
+                        
+                        <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                          {new Date(letter.created_at).toLocaleDateString()} - {new Date(letter.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ArrowRight className="h-5 w-5 text-gray-400" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-10 bg-gray-50 dark:bg-gray-700/20 rounded-lg">
+                  <FileText className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-600 mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">لا توجد خطابات حتى الآن</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">ابدأ بإنشاء خطاب جديد</p>
+                  <button 
+                    onClick={() => navigate('/admin/letters/new')}
+                    className="px-4 py-2 bg-primary text-white rounded-lg text-sm flex items-center gap-2 mx-auto"
                   >
-                    {letter.letter_templates?.image_url ? (
-                      <div className="h-14 w-14 rounded-lg border dark:border-gray-700 overflow-hidden flex-shrink-0">
-                        <img 
-                          src={letter.letter_templates.image_url} 
-                          alt={letter.letter_templates?.name || 'قالب الخطاب'}
-                          className="h-full w-full object-cover" 
-                        />
-                      </div>
-                    ) : (
-                      <div className="h-14 w-14 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                        <FileText className="h-6 w-6 text-gray-400" />
-                      </div>
-                    )}
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-gray-800 dark:text-white truncate">
-                          {letter.content?.subject || 'بدون عنوان'}
-                        </h3>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          letter.status === 'completed' 
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                        }`}>
-                          {letter.status === 'completed' ? 'مكتمل' : 'مسودة'}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center mt-1 text-sm text-gray-600 dark:text-gray-400">
-                        <span className="truncate">إلى: {letter.content?.to || 'غير محدد'}</span>
-                        <span className="mx-2">•</span>
-                        <span className="whitespace-nowrap">{letter.number}/{letter.year}</span>
-                      </div>
-                      
-                      <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        {new Date(letter.created_at).toLocaleDateString()} - {new Date(letter.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-                    
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ArrowRight className="h-5 w-5 text-gray-400" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-10 bg-gray-50 dark:bg-gray-700/20 rounded-lg">
-                <FileText className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-600 mb-3" />
-                <p className="text-gray-500 dark:text-gray-400 font-medium">لا توجد خطابات حتى الآن</p>
-                <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">ابدأ بإنشاء خطاب جديد</p>
-                <button 
-                  onClick={() => navigate('/admin/letters/new')}
-                  className="px-4 py-2 bg-primary text-white rounded-lg text-sm flex items-center gap-2 mx-auto"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  خطاب جديد
-                </button>
-              </div>
-            )}
-          </div>
-        </motion.div>
+                    <PlusCircle className="h-4 w-4" />
+                    خطاب جديد
+                  </button>
+                </div>
+              )}
+            </div>
+          </motion.div>
         ) : null}
         
         {/* Tasks & Reminders */}
@@ -752,11 +867,16 @@ export function Dashboard() {
               </div>
             )}
             
-            <div className="mt-4 pt-4 border-t dark:border-gray-700">
-              <button className="w-full py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors">
-                إضافة مهمة جديدة
-              </button>
-            </div>
+            {hasPermission('create:tasks') && (
+              <div className="mt-4 pt-4 border-t dark:border-gray-700">
+                <button 
+                  onClick={() => navigate('/admin/tasks/new')}
+                  className="w-full py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors"
+                >
+                  إضافة مهمة جديدة
+                </button>
+              </div>
+            )}
           </div>
           
           {/* Upcoming Events */}
@@ -800,23 +920,39 @@ export function Dashboard() {
           <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
             <div className="font-medium text-gray-800 dark:text-white mb-2">اختصارات لوحة المفاتيح</div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              استخدم <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded">Ctrl+K</kbd> للبحث السريع و <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded">Ctrl+/</kbd> لإنشاء خطاب جديد.
+              استخدم <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded">Ctrl+K</kbd> للبحث السريع
+              {hasPermission('create:letters') && (
+                <> و <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded">Ctrl+/</kbd> لإنشاء خطاب جديد</>
+              )}.
             </p>
           </div>
           
-          <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
-            <div className="font-medium text-gray-800 dark:text-white mb-2">النماذج النصية الجاهزة</div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              استخدم النماذج النصية الجاهزة لتسريع كتابة الخطابات المتكررة بنقرة واحدة.
-            </p>
-          </div>
+          {hasPermission('view:letters') && (
+            <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
+              <div className="font-medium text-gray-800 dark:text-white mb-2">النماذج النصية الجاهزة</div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                استخدم النماذج النصية الجاهزة لتسريع كتابة الخطابات المتكررة بنقرة واحدة.
+              </p>
+            </div>
+          )}
           
-          <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
-            <div className="font-medium text-gray-800 dark:text-white mb-2">تصدير الخطابات</div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              يمكنك تصدير الخطابات بصيغة PDF عالية الجودة أو طباعتها مباشرة من النظام.
-            </p>
-          </div>
+          {hasPermission('export:letters') && (
+            <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
+              <div className="font-medium text-gray-800 dark:text-white mb-2">تصدير الخطابات</div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                يمكنك تصدير الخطابات بصيغة PDF عالية الجودة أو طباعتها مباشرة من النظام.
+              </p>
+            </div>
+          )}
+          
+          {!hasPermission('view:letters') && !hasPermission('export:letters') && (
+            <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
+              <div className="font-medium text-gray-800 dark:text-white mb-2">الإعدادات الشخصية</div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                يمكنك تخصيص إعدادات حسابك من صفحة الإعدادات في القائمة الجانبية.
+              </p>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

@@ -19,7 +19,6 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('user');
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [isActive, setIsActive] = useState(true);
@@ -34,13 +33,10 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       setBranchId(user.branch_id);
       setPassword('');
       setIsActive(user.is_active !== false);
-      // تحديد الدور المخصص إذا كان موجودًا
-      setSelectedRoleId(null); // إعادة تعيين في البداية
     } else {
       setEmail('');
       setFullName('');
       setRole('user');
-      setSelectedRoleId(null);
       setBranchId(null);
       setPassword('');
       setIsActive(true);
@@ -79,21 +75,6 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
     return Object.keys(newErrors).length === 0;
   };
   
-  // معالجة تغيير الدور
-  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    
-    // إذا كانت القيمة المحددة هي 'admin' أو 'user'
-    if (value === 'admin' || value === 'user') {
-      setRole(value);
-      setSelectedRoleId(null);
-    } else {
-      // إذا تم تحديد دور مخصص، نحتفظ بالدور الأساسي كـ 'user'
-      setRole('user');
-      setSelectedRoleId(value);
-    }
-  };
-  
   // معالجة تقديم النموذج
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,24 +83,14 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       return;
     }
     
-    // بناء كائن بيانات المستخدم
     const userData = {
       email,
       full_name: fullName,
-      role, // سنرسل فقط 'admin' أو 'user' كقيمة للـ role
+      role,
       branch_id: branchId,
       password,
       is_active: isActive
     };
-    
-    // إضافة معرف الدور المخصص إذا تم تحديده
-    if (selectedRoleId) {
-      const selectedRole = roles.find(r => r.id === selectedRoleId);
-      if (selectedRole) {
-        // إضافة الصلاحيات من الدور المخصص
-        userData.permissions = selectedRole.permissions;
-      }
-    }
     
     onSubmit(userData);
   };
@@ -165,10 +136,10 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">الدور والصلاحيات <span className="text-red-500">*</span></label>
+        <label className="block text-sm font-medium mb-1">الدور <span className="text-red-500">*</span></label>
         <select
-          value={role === 'admin' || role === 'user' ? role : selectedRoleId || ''}
-          onChange={handleRoleChange}
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
           className={`w-full p-2 border rounded-lg ${
             errors.role ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
           }`}
@@ -176,18 +147,14 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
         >
           <option value="user">مستخدم</option>
           <option value="admin">مدير</option>
-          <optgroup label="أدوار مخصصة">
-            {roles.filter(r => r.name !== 'مدير' && r.name !== 'مستخدم').map(roleItem => (
-              <option key={roleItem.id} value={roleItem.id}>
-                {roleItem.name} {roleItem.permissions?.length === 0 ? '(بدون صلاحيات)' : ''}
-              </option>
-            ))}
-          </optgroup>
+          {/* عرض الأدوار المخصصة من قاعدة البيانات */}
+          {roles.filter(r => r.name !== 'مدير' && r.name !== 'مستخدم').map(roleItem => (
+            <option key={roleItem.id} value={roleItem.name}>
+              {roleItem.name} {roleItem.permissions?.length === 0 ? '(بدون صلاحيات)' : ''}
+            </option>
+          ))}
         </select>
         {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
-        <p className="text-gray-500 text-xs mt-1">
-          {selectedRoleId ? 'سيتم تعيين الدور الأساسي كمستخدم مع إضافة الصلاحيات المخصصة.' : ''}
-        </p>
       </div>
 
       <div>

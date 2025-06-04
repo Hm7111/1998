@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useThemeStore } from '../../store/theme'
 import { supabase } from '../../lib/supabase'
 import { useHotkeys } from '../../hooks/useHotkeys'
-import { useAuth, hasPermission } from '../../lib/auth'
+import { useAuth } from '../../lib/auth'
 import { useToast } from '../../hooks/useToast'
 import { useWorkflow } from '../../hooks/useWorkflow'
 import { useQuery } from '@tanstack/react-query'
@@ -13,7 +13,7 @@ export function Header() {
   const { theme, setTheme } = useThemeStore()
   const navigate = useNavigate()
   const { registerHotkey } = useHotkeys()
-  const { dbUser } = useAuth()
+  const { dbUser, hasPermission } = useAuth()
   const { toast } = useToast()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)

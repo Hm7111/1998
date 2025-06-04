@@ -39,10 +39,8 @@ function createSupabaseClient() {
     },
     global: {
       headers: { 
-        'x-application-name': 'letters-system',
-        'Access-Control-Allow-Origin': '*'
-      },
-      fetch: fetch.bind(globalThis)
+        'x-application-name': 'letters-system'
+      }
     },
     // تحسين: تقليل حجم الاستجابة
     db: {

@@ -88,8 +88,8 @@ export function useUsers() {
       const { data: existingUser } = await supabase
         .from('users')
         .select('id')
-        .eq('email', userData.email)
-        .single();
+        .eq('email', userData.email) 
+        .maybeSingle();
 
       if (existingUser) {
         throw new Error('البريد الإلكتروني مسجل مسبقاً');

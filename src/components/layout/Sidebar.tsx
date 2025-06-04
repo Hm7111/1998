@@ -93,33 +93,54 @@ export function Sidebar() {
   const navigation = getNavigationItems();
 
   return (
-    <aside className="w-64 border-l border-gray-700/20 bg-[#0f172a] h-[calc(100vh-4rem)] transition-colors duration-300">
-      <nav className="space-y-1">
-        {navigation.map((item) => {
-          const isActive = location.pathname === item.href || 
+    <aside className="w-64 bg-[#0f172a] h-[calc(100vh-4rem)] transition-colors duration-300">
+      <nav className="h-full py-4 flex flex-col">
+        <div className="space-y-1 px-2 flex-1 overflow-y-auto">
+          {navigation.map((item) => {
+            const isActive = location.pathname === item.href || 
                           (item.href !== '/admin' && location.pathname.startsWith(item.href));
                           
-          // Skip items that require permissions the user doesn't have
-          if (item.permissions && item.permissions.length > 0 && !hasPermission(item.permissions[0]) && !item.permissions.some(p => hasPermission(p))) {
-            return null;
-          }
-          
-          return (
-            <Link
-              key={item.name}
-              to={item.href}
-              className={cn(
-                'flex items-center gap-x-3 px-4 py-3 text-sm font-medium',
-                isActive
-                  ? 'bg-primary/10 text-white border-r-4 border-primary'
-                  : 'text-gray-400 hover:bg-[#1e293b] hover:text-white'
-              )}
-            >
-              <item.icon className={`h-5 w-5 ${isActive ? 'text-primary' : ''}`} />
-              {item.name}
-            </Link>
-          )
-        })}
+            // Skip items that require permissions the user doesn't have
+            if (item.permissions && item.permissions.length > 0 && !hasPermission(item.permissions[0]) && !item.permissions.some(p => hasPermission(p))) {
+              return null;
+            }
+            
+            return (
+              <Link
+                key={item.name}
+                to={item.href}
+                className={cn(
+                  'flex items-center gap-x-3 px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-150',
+                  isActive
+                    ? 'bg-primary/20 text-white'
+                    : 'text-gray-300 hover:bg-[#1e293b] hover:text-white'
+                )}
+              >
+                <item.icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-gray-400")} />
+                {item.name}
+              </Link>
+            )
+          })}
+        </div>
+        
+        <div className="mt-auto px-3 pb-3">
+          <div className="bg-[#1e293b] rounded-md p-3 text-xs text-gray-400">
+            <p className="flex items-center gap-2 mb-2 font-medium text-gray-300">
+              <ClipboardCheck className="h-4 w-4 text-primary" />
+              إحصائيات سريعة
+            </p>
+            <div className="space-y-1.5">
+              <div className="flex justify-between">
+                <span>الخطابات</span>
+                <span className="font-medium text-gray-300">237</span>
+              </div>
+              <div className="flex justify-between">
+                <span>طلبات معلقة</span>
+                <span className="font-medium text-gray-300">{unreadNotifications}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </nav>
     </aside>
   )

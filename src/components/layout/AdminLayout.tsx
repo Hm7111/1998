@@ -9,7 +9,7 @@ export function AdminLayout() {
       <Header />
       <div className="flex">
         <Sidebar />
-        <main className="flex-1 p-6 transition-colors duration-300 bg-gray-100 dark:bg-gray-900">
+        <main className="flex-1 p-6 transition-colors duration-300 bg-gray-100 dark:bg-gray-900 overflow-x-hidden">
           <Outlet />
         </main>
       </div>

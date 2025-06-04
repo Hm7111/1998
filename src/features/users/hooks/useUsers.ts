@@ -95,7 +95,14 @@ export function useUsers() {
         throw new Error('البريد الإلكتروني مسجل مسبقاً');
       }
 
-      // إنشاء مستخدم جديد باستخدام API الخدمة
+      // التحقق من أن الدور الأساسي مسموح به (admin أو user)
+      const { data: allowedRoles } = await supabase.rpc('get_allowed_roles');
+      
+      if (Array.isArray(allowedRoles) && !allowedRoles.includes(userData.role)) {
+        throw new Error(`الدور الأساسي غير مسموح به. الأدوار المسموح بها هي: ${allowedRoles.join(', ')}`);
+      }
+
+      // إنشاء مستخدم جديد باستخدام Edge Function
       const { data, error: createError } = await supabase.functions.invoke('admin-create-user', {
         body: {
           email: userData.email,
@@ -172,6 +179,15 @@ export function useUsers() {
     
     try {
       console.log('Updating user with data:', userData);
+      
+      // التحقق من أن الدور الأساسي مسموح به (admin أو user)
+      if (userData.role) {
+        const { data: allowedRoles } = await supabase.rpc('get_allowed_roles');
+        
+        if (Array.isArray(allowedRoles) && !allowedRoles.includes(userData.role)) {
+          throw new Error(`الدور الأساسي غير مسموح به. الأدوار المسموح بها هي: ${allowedRoles.join(', ')}`);
+        }
+      }
       
       // تحديث بيانات المستخدم في قاعدة البيانات
       const { error: updateError } = await supabase

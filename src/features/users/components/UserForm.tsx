@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { User, Branch, UserRole } from '../types';
 import { BranchSelector } from '../../../components/branches/BranchSelector';
 import { Eye, EyeOff, Shield, Info } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../../../lib/supabase';
 
 interface UserFormProps {
   user?: User;
@@ -59,6 +61,22 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       setIsActive(true);
     }
   }, [user]);
+
+  // التحقق من وجود جميع الأدوار المخصصة الموجودة في قاعدة البيانات
+  const { data: allowedRoles = [] } = useQuery({
+    queryKey: ['allowed-user-roles'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_allowed_roles');
+      
+      if (error) {
+        console.error('Error fetching allowed roles:', error);
+        return ['admin', 'user'];
+      }
+      
+      return data || ['admin', 'user'];
+    },
+    staleTime: 1000 * 60 * 5 // 5 minutes
+  });
   
   // التحقق من صحة النموذج
   const validateForm = () => {
@@ -74,8 +92,12 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       newErrors.full_name = 'الاسم الكامل مطلوب';
     }
     
-    if (!role || (role !== 'admin' && role !== 'user')) {
-      newErrors.role = 'الدور الأساسي مطلوب (مدير أو مستخدم)';
+    if (!role || (Array.isArray(allowedRoles) && !allowedRoles.includes(role))) {
+      newErrors.role = `الدور الأساسي يجب أن يكون أحد القيم المسموح بها: ${
+        Array.isArray(allowedRoles) 
+          ? allowedRoles.join(', ') 
+          : 'admin, user'
+      }`;
     }
     
     if (!branchId) {
@@ -202,8 +224,18 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
             }`}
             required
           >
-            <option value="user">مستخدم</option>
-            <option value="admin">مدير</option>
+            {Array.isArray(allowedRoles) && allowedRoles.length > 0 ? (
+              allowedRoles.map(allowedRole => (
+                <option key={allowedRole} value={allowedRole}>
+                  {allowedRole === 'admin' ? 'مدير' : allowedRole === 'user' ? 'مستخدم' : allowedRole}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="user">مستخدم</option>
+                <option value="admin">مدير</option>
+              </>
+            )}
           </select>
           {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
         </div>

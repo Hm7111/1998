@@ -18,7 +18,7 @@ export function Sidebar() {
   })
   
   // Define the unreadNotifications variable based on pending approvals count
-  const unreadNotifications = pendingApprovals?.length || 0
+  const unreadCount = pendingApprovals?.length || 0
 
   // Define navigation items with permission checks
   const getNavigationItems = () => {
@@ -40,7 +40,7 @@ export function Sidebar() {
         href: '/admin/approvals',
         icon: ClipboardCheck,
         permissions: ['view:approvals', 'view:approvals:own'],
-        badge: unreadNotifications > 0 ? unreadNotifications : null
+        badge: unreadCount > 0 ? unreadCount : null
       },
       {
         name: 'المهام',
@@ -170,7 +170,7 @@ export function Sidebar() {
               </div>
               <div className="flex justify-between">
                 <span>طلبات معلقة</span>
-                <span className="font-medium text-gray-300">{unreadNotifications}</span>
+                <span className="font-medium text-gray-300">{unreadCount}</span>
               </div>
             </div>
           </div>

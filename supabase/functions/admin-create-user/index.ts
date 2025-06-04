@@ -1,5 +1,5 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8'
+import { serve } from "npm:@deno/std@0.177.0/http/server.ts"
+import { createClient } from "npm:@supabase/supabase-js@2.39.8"
 
 interface CreateUserRequest {
   email: string;
@@ -25,6 +25,25 @@ serve(async (req) => {
     if (!email || !password) {
       return new Response(
         JSON.stringify({ error: 'البريد الإلكتروني وكلمة المرور مطلوبان' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // التحقق من صحة الدور
+    const { data: allowedRoles, error: rolesError } = await supabase.rpc('get_allowed_roles');
+    if (rolesError) {
+      console.error('Error fetching allowed roles:', rolesError);
+      return new Response(
+        JSON.stringify({ error: 'فشل في التحقق من الأدوار المسموحة' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (Array.isArray(allowedRoles) && !allowedRoles.includes(user_metadata.role)) {
+      return new Response(
+        JSON.stringify({ 
+          error: `الدور غير مسموح به. الأدوار المسموح بها هي: ${allowedRoles.join(', ')}` 
+        }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }

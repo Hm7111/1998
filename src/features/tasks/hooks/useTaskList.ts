@@ -61,8 +61,8 @@ export function useTaskList() {
           } else if (filters.taskType === 'created_by_me') {
             query = query.eq('created_by', dbUser.id);
           } else {
-            // المستخدمون العاديون يرون المهام المخصصة لهم فقط
-            // أو المهام التي أنشأوها
+            // المستخدمون العاديون يرون المهام المخصصة لهم أو المهام التي أنشأوها
+            // تحسين: إضافة الشرط لإظهار المهام التي أنشأها المستخدم بغض النظر عن الفرع
             query = query.or(`assigned_to.eq.${dbUser.id},created_by.eq.${dbUser.id}`);
           }
         } else if (filters.taskType === 'assigned_to_me' && dbUser?.id) {
@@ -73,10 +73,15 @@ export function useTaskList() {
           query = query.eq('created_by', dbUser.id);
         }
         
+        // تعديل: يتم تطبيق فلتر الفرع فقط عندما لا يتم عرض المهام التي أنشأها المستخدم
         if (filters.branch_id) {
           query = query.eq('branch_id', filters.branch_id);
-        } else if (!isAdmin && dbUser?.branch_id) {
-          // المستخدمون العاديون يرون المهام الخاصة بفرعهم فقط
+        } else if (!isAdmin && dbUser?.branch_id && filters.taskType !== 'created_by_me') {
+          // تحسين: استثناء المهام التي أنشأها المستخدم من فلتر الفرع
+          // الشرط الآن: طبق فلتر الفرع للمستخدم العادي فقط إذا:
+          // - لم يكن المستخدم مديرًا، و
+          // - له فرع محدد، و
+          // - لم يطلب المستخدم تحديدًا رؤية المهام التي أنشأها
           query = query.eq('branch_id', dbUser.branch_id);
         }
         
@@ -175,13 +180,14 @@ export function useTaskList() {
 
           // تحديد المهام بناءً على المستخدم والفرع
           if (!isAdmin && dbUser?.id) {
-            // استخدام الشرط الصحيح للتصفية
+            // تحسين: إضافة المهام التي أنشأها المستخدم
             baseQuery = baseQuery.or(`assigned_to.eq.${dbUser.id},created_by.eq.${dbUser.id}`);
           }
           
           if (filters.branch_id) {
             baseQuery = baseQuery.eq('branch_id', filters.branch_id);
-          } else if (!isAdmin && dbUser?.branch_id) {
+          } else if (!isAdmin && dbUser?.branch_id && filters.taskType !== 'created_by_me') {
+            // تطبيق نفس منطق استثناء المهام التي أنشأها المستخدم كما في الاستعلام الرئيسي
             baseQuery = baseQuery.eq('branch_id', dbUser.branch_id);
           }
           

@@ -19,6 +19,7 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('user');
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null); // معرف الدور المخصص
   const [branchId, setBranchId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [isActive, setIsActive] = useState(true);
@@ -29,14 +30,27 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
     if (user) {
       setEmail(user.email);
       setFullName(user.full_name);
-      setRole(user.role);
+      setRole(user.role); // دائما 'admin' أو 'user' فقط
       setBranchId(user.branch_id);
       setPassword('');
       setIsActive(user.is_active !== false);
+      
+      // البحث عن الدور المخصص من خلال المعرف إذا كان موجوداً في permissions
+      if (user.permissions && Array.isArray(user.permissions)) {
+        const customRoleId = user.permissions.find(p => p.type === 'role')?.id;
+        if (customRoleId) {
+          setSelectedRoleId(customRoleId);
+        } else {
+          setSelectedRoleId(null);
+        }
+      } else {
+        setSelectedRoleId(null);
+      }
     } else {
       setEmail('');
       setFullName('');
       setRole('user');
+      setSelectedRoleId(null);
       setBranchId(null);
       setPassword('');
       setIsActive(true);
@@ -83,13 +97,26 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       return;
     }
     
+    // إنشاء مصفوفة الصلاحيات مع الدور المخصص إذا تم اختياره
+    let permissions = [];
+    if (selectedRoleId) {
+      const selectedRole = roles.find(r => r.id === selectedRoleId);
+      if (selectedRole) {
+        permissions = [
+          { type: 'role', id: selectedRoleId, name: selectedRole.name },
+          ...(selectedRole.permissions || [])
+        ];
+      }
+    }
+    
     const userData = {
       email,
       full_name: fullName,
-      role,
+      role, // دائما 'admin' أو 'user' فقط
       branch_id: branchId,
       password,
-      is_active: isActive
+      is_active: isActive,
+      permissions: permissions.length > 0 ? permissions : undefined
     };
     
     onSubmit(userData);
@@ -136,7 +163,7 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">الدور <span className="text-red-500">*</span></label>
+        <label className="block text-sm font-medium mb-1">الدور الأساسي <span className="text-red-500">*</span></label>
         <select
           value={role}
           onChange={(e) => setRole(e.target.value)}
@@ -147,14 +174,25 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
         >
           <option value="user">مستخدم</option>
           <option value="admin">مدير</option>
-          {/* عرض الأدوار المخصصة من قاعدة البيانات */}
+        </select>
+        {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">الدور المخصص</label>
+        <select
+          value={selectedRoleId || ''}
+          onChange={(e) => setSelectedRoleId(e.target.value || null)}
+          className="w-full p-2 border rounded-lg border-gray-300 dark:border-gray-700"
+        >
+          <option value="">بدون دور مخصص</option>
           {roles.filter(r => r.name !== 'مدير' && r.name !== 'مستخدم').map(roleItem => (
-            <option key={roleItem.id} value={roleItem.name}>
+            <option key={roleItem.id} value={roleItem.id}>
               {roleItem.name} {roleItem.permissions?.length === 0 ? '(بدون صلاحيات)' : ''}
             </option>
           ))}
         </select>
-        {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
+        <p className="text-gray-500 text-xs mt-1">الدور المخصص سيحدد الصلاحيات الإضافية للمستخدم</p>
       </div>
 
       <div>

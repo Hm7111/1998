@@ -19,6 +19,7 @@ export function useUsers() {
     try {
       setIsLoading(true);
 
+      // التحقق من وجود المستخدم قبل إنشائه
       const { data: existingUser, error: checkError } = await supabase
         .from('users')
         .select('id, email')
@@ -60,10 +61,16 @@ export function useUsers() {
       if (!response.ok) {
         const errorData = await response.json();
         // معالجة خطأ البريد المكرر بشكل واضح
-        if (errorData.error) {
+        if (errorData.error && (
+          errorData.error.includes('already registered') ||
+          errorData.error.includes('duplicate key') ||
+          errorData.error.includes('users_email_key') ||
+          errorData.error.includes('مسجل مسبقاً')
+        )) {
           throw new Error('البريد الإلكتروني مسجل مسبقاً');
+        } else {
+          throw new Error(errorData.error || 'فشل إنشاء المستخدم');
         }
-        throw new Error(errorData.error || 'فشل إنشاء المستخدم');
       }
 
       const result = await response.json();

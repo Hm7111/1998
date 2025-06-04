@@ -57,55 +57,24 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       
       // استخراج الصلاحيات
       if (user.permissions && Array.isArray(user.permissions)) {
-        // استخراج الصلاحيات المباشرة (الأحرف)
-        const directPermissions = user.permissions
+        const perms = user.permissions
           .filter(p => typeof p === 'string')
           .map(p => p);
-        
-        // استخراج الدور المخصص إن وجد
-        const customRole = user.permissions.find(p => 
-          typeof p === 'object' && p.type === 'role'
-        );
-        
-        if (customRole && customRole.id) {
-          setSelectedRoleId(customRole.id);
-        } else {
-          setSelectedRoleId(null);
-        }
-        
-        setSelectedPermissions(directPermissions);
+        setSelectedPermissions(perms);
       } else {
         setSelectedPermissions([]);
-        setSelectedRoleId(null);
       }
     } else {
       setEmail('');
       setFullName('');
       setSelectedRole('user');
       setSelectedPermissions([]);
-      setSelectedRoleId(null);
       setBranchId(null);
       setPassword('');
       setIsActive(true);
     }
   }, [user]);
 
-  // التحقق من وجود جميع الأدوار المخصصة الموجودة في قاعدة البيانات
-  const { data: allowedRoles = [] } = useQuery({
-    queryKey: ['allowed-user-roles'],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_allowed_roles');
-      
-      if (error) {
-        console.error('Error fetching allowed roles:', error);
-        return ['admin', 'user'];
-      }
-      
-      return data || ['admin', 'user'];
-    },
-    staleTime: 1000 * 60 * 5 // 5 minutes
-  });
-  
   // التحقق من صحة النموذج
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -120,14 +89,6 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       newErrors.full_name = 'الاسم الكامل مطلوب';
     }
     
-    if (!role || (Array.isArray(allowedRoles) && !allowedRoles.includes(role))) {
-      newErrors.role = `الدور الأساسي يجب أن يكون أحد القيم المسموح بها: ${
-        Array.isArray(allowedRoles) 
-          ? allowedRoles.join(', ') 
-          : 'admin, user'
-      }`;
-    }
-    
     if (!branchId) {
       newErrors.branch_id = 'الفرع مطلوب';
     }
@@ -138,18 +99,10 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       newErrors.password = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
     }
     
-    // التحقق من وجود الدور المخصص
-    if (selectedRoleId) {
-      const roleExists = roles.some(r => r.id === selectedRoleId);
-      if (!roleExists) {
-        newErrors.custom_role = 'الدور المخصص المحدد غير موجود';
-      }
-    }
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-  
+
   // تبديل اختيار صلاحية
   const togglePermission = (permissionId: string) => {
     setSelectedPermissions(prev => {
@@ -197,198 +150,297 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       return;
     }
     
-    // إنشاء مصفوفة permissions مع الدور المخصص إذا تم اختياره
-    let permissions = [...selectedPermissions];
-    if (selectedRoleId) {
-      const selectedRole = roles.find(r => r.id === selectedRoleId);
-      if (selectedRole) {
-        permissions.push({
-          type: 'role',
-          id: selectedRoleId,
-          name: selectedRole.name
-        });
-      }
-    }
-    
     const userData = {
       email,
       full_name: fullName,
-      role: selectedRole, // الدور الأساسي - إما 'admin' أو 'user' فقط
+      role: selectedRole,
       branch_id: branchId,
       password,
       is_active: isActive,
-      permissions: permissions.length > 0 ? permissions : undefined
+      permissions: selectedPermissions
     };
     
     await onSubmit(userData);
   };
 
-  // الحصول على الدور المخصص الحالي
-  const getSelectedRoleName = () => {
-    if (!selectedRoleId) return null;
-    const role = roles.find(r => r.id === selectedRoleId);
-    return role ? role.name : null;
-  };
-  
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-1">البريد الإلكتروني <span className="text-red-500">*</span></label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className={`w-full p-2 border rounded-lg ${
-            errors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
-          }`}
-          required
-        />
-        {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-lg p-4 text-blue-800 dark:text-blue-300 mb-4">
+        <div className="flex items-start gap-2">
+          <Info className="h-5 w-5 mt-0.5 flex-shrink-0" />
+          <div>
+            <h3 className="font-medium mb-1">إرشادات استخدام</h3>
+            <ul className="text-sm list-disc list-inside space-y-1 mr-1">
+              <li>أدخل البيانات الأساسية للمستخدم وقم باختيار الفرع التابع له</li>
+              <li>حدد الدور الأساسي للمستخدم (مدير أو مستخدم عادي)</li>
+              <li>يمكنك تحديد الصلاحيات المخصصة بشكل مباشر عند النقر على "إدارة الصلاحيات"</li>
+              <li>تأكد من تعيين كلمة مرور قوية للمستخدم الجديد</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-1">الاسم الكامل <span className="text-red-500">*</span></label>
-        <input
-          type="text"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          className={`w-full p-2 border rounded-lg ${
-            errors.full_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
-          }`}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <FormField
+          label="البريد الإلكتروني"
+          name="email"
           required
-        />
-        {errors.full_name && <p className="text-red-500 text-xs mt-1">{errors.full_name}</p>}
-      </div>
+          error={errors.email}
+        >
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={`w-full p-2.5 border rounded-lg focus:ring-primary focus:border-primary transition-all ${
+              errors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+            }`}
+            placeholder="أدخل البريد الإلكتروني"
+          />
+        </FormField>
 
-      <div>
-        <label className="block text-sm font-medium mb-1">الفرع <span className="text-red-500">*</span></label>
-        <BranchSelector 
-          value={branchId} 
-          onChange={(value) => setBranchId(value)}
+        <FormField
+          label="الاسم الكامل"
+          name="full_name"
+          required
+          error={errors.full_name}
+        >
+          <input
+            type="text"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            className={`w-full p-2.5 border rounded-lg focus:ring-primary focus:border-primary transition-all ${
+              errors.full_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+            }`}
+            placeholder="أدخل الاسم الكامل للمستخدم"
+          />
+        </FormField>
+
+        <FormField
+          label="الفرع"
+          name="branch_id"
           required
           error={errors.branch_id}
-        />
-      </div>
-
-      <div className="border-t dark:border-gray-800 pt-4 mt-4">
-        <div className="mb-4">
-          <h3 className="text-md font-medium flex items-center gap-2">
-            <Shield className="h-4 w-4 text-primary" />
-            إعدادات الدور والصلاحيات
-          </h3>
-          <p className="text-xs text-gray-500 mt-1">
-            يمكنك تعيين دور أساسي (مدير أو مستخدم) ودور مخصص إضافي
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">الدور الأساسي <span className="text-red-500">*</span></label>
-          <select
-            value={selectedRole}
-            onChange={(e) => setSelectedRole(e.target.value)}
-            className={`w-full p-2 border rounded-lg ${
-              errors.role ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
-            }`}
+        >
+          <BranchSelector
+            value={branchId}
+            onChange={(value) => setBranchId(value)}
+            error={errors.branch_id}
             required
-          >
-            {Array.isArray(allowedRoles) && allowedRoles.length > 0 ? (
-              allowedRoles.map(allowedRole => (
-                <option key={allowedRole} value={allowedRole}>
-                  {allowedRole === 'admin' ? 'مدير' : allowedRole === 'user' ? 'مستخدم' : allowedRole}
-                </option>
-              ))
-            ) : (
-              <>
-                <option value="user">مستخدم</option>
-                <option value="admin">مدير</option>
-              </>
-            )}
-          </select>
-          {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
-        </div>
+          />
+        </FormField>
 
-        <div className="mt-4">
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium">الدور المخصص</label>
-            <div className="group relative">
-              <Info className="h-4 w-4 text-gray-400 cursor-pointer" />
-              <div className="absolute bottom-full right-0 mb-2 w-60 p-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
-                الدور المخصص يمنح المستخدم صلاحيات إضافية محددة في نظام إدارة الصلاحيات
+        <FormField
+          label="الدور الأساسي"
+          name="role"
+          required
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div
+              className={`p-4 border rounded-lg cursor-pointer flex flex-col items-center gap-2 transition-colors ${
+                selectedRole === 'admin' 
+                  ? 'border-primary bg-primary/5 dark:bg-primary/20' 
+                  : 'border-gray-200 dark:border-gray-700 hover:border-primary'
+              }`}
+              onClick={() => setSelectedRole('admin')}
+            >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                selectedRole === 'admin' 
+                  ? 'bg-primary/20 text-primary' 
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
+              }`}>
+                <Shield className="h-5 w-5" />
               </div>
+              <div className="font-medium">مدير</div>
+              <div className="text-xs text-gray-600 dark:text-gray-400">صلاحيات كاملة للنظام</div>
+              
+              {selectedRole === 'admin' && (
+                <div className="mt-2 text-xs bg-primary text-white px-3 py-1 rounded-full flex items-center gap-1">
+                  <Check className="h-3 w-3" /> محدد
+                </div>
+              )}
+            </div>
+            
+            <div
+              className={`p-4 border rounded-lg cursor-pointer flex flex-col items-center gap-2 transition-colors ${
+                selectedRole === 'user' 
+                  ? 'border-primary bg-primary/5 dark:bg-primary/20' 
+                  : 'border-gray-200 dark:border-gray-700 hover:border-primary'
+              }`}
+              onClick={() => setSelectedRole('user')}
+            >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                selectedRole === 'user' 
+                  ? 'bg-primary/20 text-primary' 
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
+              }`}>
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  width="20" 
+                  height="20" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                >
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+              </div>
+              <div className="font-medium">مستخدم</div>
+              <div className="text-xs text-gray-600 dark:text-gray-400">صلاحيات محدودة</div>
+              
+              {selectedRole === 'user' && (
+                <div className="mt-2 text-xs bg-primary text-white px-3 py-1 rounded-full flex items-center gap-1">
+                  <Check className="h-3 w-3" /> محدد
+                </div>
+              )}
             </div>
           </div>
-          <select
-            value={selectedRoleId || ''}
-            onChange={(e) => setSelectedRoleId(e.target.value || null)}
-            className={`w-full p-2 border rounded-lg ${
-              errors.custom_role ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
-            }`}
+        </FormField>
+
+        <FormField
+          label="كلمة المرور"
+          name="password"
+          required={!user}
+          error={errors.password}
+        >
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={`w-full p-2.5 border rounded-lg pr-10 focus:ring-primary focus:border-primary transition-all ${
+                errors.password ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+              }`}
+              placeholder={user ? "اتركها فارغة للاحتفاظ بكلمة المرور الحالية" : "أدخل كلمة المرور"}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute inset-y-0 right-0 flex items-center pr-3"
+            >
+              {showPassword ? (
+                <EyeOff className="h-5 w-5 text-gray-400" />
+              ) : (
+                <Eye className="h-5 w-5 text-gray-400" />
+              )}
+            </button>
+          </div>
+        </FormField>
+        
+        <div className="md:col-span-2">
+          <FormField
+            label="الصلاحيات المخصصة"
+            name="permissions"
+            description="حدد الصلاحيات التي ستمنح للمستخدم"
           >
-            <option value="">بدون دور مخصص</option>
-            {roles.map(roleItem => (
-              <option key={roleItem.id} value={roleItem.id}>
-                {roleItem.name} {roleItem.permissions?.length === 0 ? '(بدون صلاحيات)' : ''}
-              </option>
-            ))}
-          </select>
-          {errors.custom_role && (
-            <p className="text-red-500 text-xs mt-1">{errors.custom_role}</p>
-          )}
-          <p className="text-gray-500 text-xs mt-1">
-            {selectedRoleId
-              ? `الدور المخصص: ${getSelectedRoleName()}`
-              : 'اختر دوراً مخصصاً لمنح المستخدم صلاحيات إضافية'}
+            <button
+              type="button"
+              onClick={() => setShowPermissionSelector(!showPermissionSelector)}
+              className="w-full p-3 flex justify-between items-center border border-gray-300 dark:border-gray-700 rounded-lg hover:border-primary"
+            >
+              <span>
+                {selectedPermissions.length > 0 
+                  ? `تم تحديد ${selectedPermissions.length} صلاحية` 
+                  : 'انقر لتحديد الصلاحيات'}
+              </span>
+              <span className="text-primary">إدارة الصلاحيات</span>
+            </button>
+          </FormField>
+        </div>
+
+        <div className="md:col-span-2">
+          <div className="flex items-center space-x-3 rtl:space-x-reverse">
+            <input
+              type="checkbox"
+              id="is-active"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+            />
+            <label htmlFor="is-active" className="block text-sm">
+              حساب نشط
+            </label>
+          </div>
+          <p className="text-xs text-gray-500 mt-1 mr-7">
+            المستخدمون غير النشطين لن يتمكنوا من تسجيل الدخول للنظام
           </p>
         </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-1">
-          {user ? 'كلمة المرور (اتركها فارغة إذا لم ترد تغييرها)' : 'كلمة المرور'} {!user && <span className="text-red-500">*</span>}
-        </label>
-        <div className="relative">
-          <input
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={`w-full p-2 border rounded-lg pr-10 ${
-              errors.password ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
-            }`}
-            required={!user}
-            minLength={6}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute inset-y-0 right-0 flex items-center pr-3"
-          >
-            {showPassword ? (
-              <EyeOff className="h-5 w-5 text-gray-400" />
-            ) : (
-              <Eye className="h-5 w-5 text-gray-400" />
-            )}
-          </button>
+      {showPermissionSelector && (
+        <div className="border dark:border-gray-800 rounded-lg">
+          <div className="border-b dark:border-gray-800 p-4 flex justify-between items-center">
+            <h3 className="font-medium">تحديد الصلاحيات</h3>
+            <button
+              type="button"
+              className="text-sm text-primary"
+              onClick={() => setSelectedPermissions([])}
+            >
+              إعادة ضبط
+            </button>
+          </div>
+          <div className="max-h-96 overflow-y-auto p-4 space-y-6">
+            {Object.entries(permissionsByCategory).map(([category, categoryPermissions]) => (
+              <div key={category}>
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">
+                  {translateCategory(category)}
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {categoryPermissions.map(permission => (
+                    <div
+                      key={permission.id}
+                      onClick={() => togglePermission(permission.id)}
+                      className={`p-3 rounded-lg cursor-pointer border ${
+                        selectedPermissions.includes(permission.id)
+                          ? 'border-primary bg-primary/10 dark:bg-primary/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-primary'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium">{permission.name}</div>
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                          selectedPermissions.includes(permission.id)
+                            ? 'bg-primary border-primary text-white'
+                            : 'border-gray-300 dark:border-gray-600'
+                        }`}>
+                          {selectedPermissions.includes(permission.id) && (
+                            <Check className="h-3 w-3" />
+                          )}
+                        </div>
+                      </div>
+                      {permission.description && (
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          {permission.description}
+                        </p>
+                      )}
+                      <div className="text-xs font-mono bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1 rounded mt-2">
+                        {permission.code}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="p-3 border-t dark:border-gray-800 flex justify-end">
+            <button
+              type="button"
+              className="px-4 py-2 bg-primary text-white rounded-lg"
+              onClick={() => setShowPermissionSelector(false)}
+            >
+              تم
+            </button>
+          </div>
         </div>
-        {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
-      </div>
-      
-      <div className="flex items-center">
-        <input
-          type="checkbox"
-          id="is-active"
-          checked={isActive}
-          onChange={(e) => setIsActive(e.target.checked)}
-          className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
-        />
-        <label htmlFor="is-active" className="mr-2 block text-sm">
-          حساب نشط
-        </label>
-      </div>
+      )}
 
-      <div className="flex justify-end gap-x-2 pt-4">
+      <div className="flex justify-end pt-4 border-t dark:border-gray-800">
         <button
           type="submit"
-          className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-70"
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-70"
           disabled={isLoading}
         >
           {isLoading ? (
@@ -397,7 +449,9 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
               <span>جارٍ الحفظ...</span>
             </>
           ) : (
-            <span>حفظ</span>
+            <>
+              {user ? 'تحديث المستخدم' : 'إضافة مستخدم'}
+            </>
           )}
         </button>
       </div>

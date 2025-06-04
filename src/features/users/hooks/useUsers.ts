@@ -84,7 +84,7 @@ export function useUsers() {
     setError(null);
     
     try {
-      // Check if user already exists
+      // التحقق من وجود المستخدم مسبقًا
       const { data: existingUser } = await supabase
         .from('users')
         .select('id')
@@ -95,43 +95,58 @@ export function useUsers() {
         throw new Error('البريد الإلكتروني مسجل مسبقاً');
       }
 
-      // إنشاء المستخدم في نظام المصادقة
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password || '',
-        options: {
-          data: {
+      // إنشاء المستخدم بدون تسجيل الدخول تلقائيًا - الخطأ كان هنا
+      // استخدام admin.createUser بدلًا من auth.signUp لتجنب تسجيل الدخول التلقائي
+      const { data, error: adminError } = await supabase.functions.invoke('admin-create-user', {
+        body: {
+          email: userData.email,
+          password: userData.password,
+          user_metadata: {
             full_name: userData.full_name,
             role: userData.role,
             branch_id: userData.branch_id
           }
         }
       });
-
-      if (signUpError) {
-        if (signUpError.message === 'User already registered') {
-          throw new Error('البريد الإلكتروني مسجل مسبقاً');
-        }
-        throw signUpError;
+      
+      if (adminError) {
+        throw new Error(`فشل إنشاء المستخدم: ${adminError.message || 'خطأ غير معروف'}`);
       }
       
-      if (!authData.user?.id) {
+      if (!data || !data.id) {
         throw new Error('لم يتم إنشاء المستخدم بشكل صحيح');
       }
       
-      const userId = authData.user.id;
+      const userId = data.id;
       
-      // استخدام RPC لضمان وجود المستخدم في قاعدة البيانات
-      const { error: rpcError } = await supabase.rpc('ensure_user_exists', {
-        user_id: userId,
-        user_email: userData.email,
-        user_full_name: userData.full_name,
-        user_role: userData.role,
-        user_branch_id: userData.branch_id
-      });
+      // التأكد من وجود المستخدم في جدول users
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert({
+          id: userId,
+          email: userData.email,
+          full_name: userData.full_name,
+          role: userData.role,
+          branch_id: userData.branch_id,
+          is_active: userData.is_active !== undefined ? userData.is_active : true
+        });
+        
+      if (insertError) {
+        // في حالة فشل إدراج البيانات في الجدول، حاول تحديثها بدلاً من ذلك
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({
+            email: userData.email,
+            full_name: userData.full_name,
+            role: userData.role,
+            branch_id: userData.branch_id,
+            is_active: userData.is_active !== undefined ? userData.is_active : true
+          })
+          .eq('id', userId);
+          
+        if (updateError) throw updateError;
+      }
 
-      if (rpcError) throw rpcError;
-      
       // تحديث البيانات في واجهة المستخدم
       queryClient.invalidateQueries({ queryKey: ['users'] });
       
@@ -176,7 +191,7 @@ export function useUsers() {
           email: userData.email,
           full_name: userData.full_name,
           role: userData.role,
-         branch_id: userData.branch_id || null,
+          branch_id: userData.branch_id || null,
           is_active: userData.is_active,
           permissions: userData.permissions,
           updated_at: new Date().toISOString()
@@ -185,11 +200,14 @@ export function useUsers() {
 
       if (updateError) throw updateError;
       
-      // تحديث كلمة المرور إذا تم توفيرها
+      // تحديث كلمة المرور إذا تم توفيرها - الخطأ كان هنا
       if (userData.password) {
-        // استخدام API القياسي لتحديث كلمة المرور
-        const { error: passwordError } = await supabase.auth.updateUser({
-          password: userData.password
+        // استخدام واجهة برمجة التطبيقات الإدارية لتحديث كلمة المرور للمستخدم المحدد
+        const { error: passwordError } = await supabase.functions.invoke('admin-update-user-password', {
+          body: {
+            user_id: userId,
+            password: userData.password
+          }
         });
         
         if (passwordError) throw passwordError;
@@ -198,8 +216,6 @@ export function useUsers() {
       // تحديث البيانات في واجهة المستخدم
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['user', userId] });
-     // تحديث بيانات المستخدم الحالي إذا كان هو نفسه المستخدم الذي تم تحديثه
-     queryClient.invalidateQueries({ queryKey: ['user', userId] });
       
       toast({
         title: 'تم التحديث',

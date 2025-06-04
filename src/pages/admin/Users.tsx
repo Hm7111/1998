@@ -7,6 +7,7 @@ import { UserDialog } from '../../components/users/UserDialog'
 import { useQuery } from '@tanstack/react-query'
 import { BranchSelector } from '../../components/branches/BranchSelector'
 import { useToast } from '../../hooks/useToast'
+import { EmptyState } from '../../components/ui/EmptyState'
 
 export function Users() {
   const [users, setUsers] = useState<User[]>([])
@@ -18,7 +19,7 @@ export function Users() {
   const [searchQuery, setSearchQuery] = useState('')
   const [branchFilter, setBranchFilter] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
-  const { isAdmin } = useAuth()
+  const { isAdmin, dbUser } = useAuth()
   const { toast } = useToast()
 
   const { data: branches = [] } = useQuery({
@@ -32,7 +33,8 @@ export function Users() {
       if (error) throw error
       return data as Branch[]
     },
-    enabled: isAdmin
+    enabled: isAdmin,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   })
 
   const { data: roles = [] } = useQuery({
@@ -46,7 +48,8 @@ export function Users() {
       if (error) throw error
       return data as UserRole[]
     },
-    enabled: isAdmin
+    enabled: isAdmin,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   })
 
   useEffect(() => {
@@ -67,10 +70,15 @@ export function Users() {
         query = query.eq('branch_id', branchFilter)
       }
 
-      const { data, error } = await query.throwOnError()
+      const { data, error } = await query
 
       if (error) {
         console.error('Error loading users:', error)
+        toast({
+          title: 'خطأ',
+          description: 'حدث خطأ أثناء تحميل المستخدمين',
+          type: 'error'
+        })
         return
       }
 
@@ -171,36 +179,45 @@ export function Users() {
   const filteredUsers = users.filter(user => {
     const matchesSearch = !searchQuery || 
       user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (user.branches?.name && user.branches.name.toLowerCase().includes(searchQuery.toLowerCase()));
     
     return matchesSearch;
   });
 
+  // منع الوصول إذا لم يكن المستخدم مديراً
+  if (!isAdmin) {
+    return (
+      <EmptyState
+        title="غير مصرح بالوصول"
+        description="عذراً، يجب أن تكون مديراً للوصول إلى صفحة إدارة المستخدمين"
+        icon={<Trash2 className="h-12 w-12 text-red-500" />}
+        isError={true}
+      />
+    );
+  }
+
   return (
     <>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">
-          {isAdmin ? 'إدارة المستخدمين' : 'غير مصرح بالوصول'}
-        </h1>
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="p-2 border dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
-              title="تصفية"
-            >
-              <Filter className="h-5 w-5 text-gray-500" />
-            </button>
-            
-            <button
-              onClick={handleAdd}
-              className="bg-primary text-primary-foreground px-3 py-2 rounded-lg flex items-center gap-x-2 text-sm"
-            >
-              <Plus className="h-4 w-4" />
-              إضافة مستخدم جديد
-            </button>
-          </div>
-        )}
+        <h1 className="text-2xl font-bold">إدارة المستخدمين</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="p-2 border dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+            title="تصفية"
+          >
+            <Filter className="h-5 w-5 text-gray-500" />
+          </button>
+          
+          <button
+            onClick={handleAdd}
+            className="bg-primary text-primary-foreground px-3 py-2 rounded-lg flex items-center gap-x-2 text-sm"
+          >
+            <Plus className="h-4 w-4" />
+            إضافة مستخدم جديد
+          </button>
+        </div>
       </div>
 
       {showFilters && (
@@ -246,123 +263,141 @@ export function Users() {
         </div>
       )}
 
-      {!isAdmin ? (
-        <div className="bg-red-50 text-red-600 p-4 rounded-lg">
-          عذراً، يجب أن تكون مديراً للوصول إلى هذه الصفحة
-        </div>
-      ) : isLoading ? (
+      {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-4 border-t-primary border-r-transparent border-b-primary border-l-transparent"></div>
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm overflow-hidden border dark:border-gray-800">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-900/50">
-                <tr>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الاسم</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">البريد الإلكتروني</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الفرع</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الدور</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الحالة</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-2">
-                        <span>{user.full_name}</span>
-                        {user.branches && (
-                          <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
-                            {user.branches.code}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">{user.email}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {user.branches ? (
-                        <div className="flex items-center gap-1">
-                          <Building className="h-4 w-4 text-primary" />
-                          <span>{user.branches.name}</span>
-                          <span className="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
-                            {user.branches.code}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">غير محدد</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                        user.role === 'admin' 
-                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' 
-                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                      }`}>
-                        {user.role === 'admin' ? 'مدير' : 'مستخدم'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`inline-flex rounded-full px-2 text-xs font-semibold ${
-                        user.is_active
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                          : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                      }`}>
-                        {user.is_active ? 'نشط' : 'غير نشط'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-x-3">
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="text-primary hover:underline"
-                        >
-                          تعديل
-                        </button>
-                        
-                        {user.is_active ? (
-                          <button
-                            onClick={() => handleDeactivate(user)}
-                            className="text-red-600 hover:text-red-700 flex items-center gap-1"
-                            disabled={deleteLoading === user.id}
-                          >
-                            {deleteLoading === user.id ? (
-                              <span className="inline-block h-4 w-4 rounded-full border-2 border-red-600/30 border-t-red-600 animate-spin"></span>
-                            ) : (
-                              <UserX className="h-4 w-4" />
-                            )}
-                            <span>تعطيل</span>
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleActivate(user)}
-                            className="text-green-600 hover:text-green-700 flex items-center gap-1"
-                            disabled={activateLoading === user.id}
-                          >
-                            {activateLoading === user.id ? (
-                              <span className="inline-block h-4 w-4 rounded-full border-2 border-green-600/30 border-t-green-600 animate-spin"></span>
-                            ) : (
-                              <UserCheck className="h-4 w-4" />
-                            )}
-                            <span>تنشيط</span>
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredUsers.length === 0 && (
+          {filteredUsers.length === 0 ? (
+            <div className="p-8 text-center">
+              <EmptyState
+                title="لا يوجد مستخدمين"
+                description={searchQuery ? "لا يوجد مستخدمين مطابقين لمعايير البحث" : "لم يتم إضافة أي مستخدم بعد"}
+                action={{
+                  label: "إضافة مستخدم جديد",
+                  onClick: handleAdd,
+                  icon: <Plus className="h-4 w-4" />
+                }}
+                secondaryAction={searchQuery || branchFilter ? {
+                  label: "إعادة ضبط الفلاتر",
+                  onClick: () => {
+                    setSearchQuery("");
+                    setBranchFilter(null);
+                  }
+                } : undefined}
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-gray-900/50">
                   <tr>
-                    <td colSpan={6} className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
-                      لا يوجد مستخدمين مطابقين لمعايير البحث
-                    </td>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الاسم</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">البريد الإلكتروني</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الفرع</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الدور</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الحالة</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الإجراءات</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                  {filteredUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{user.full_name}</span>
+                          {user.id === dbUser?.id && (
+                            <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 rounded-full">
+                              أنت
+                            </span>
+                          )}
+                          {user.branches && (
+                            <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                              {user.branches.code}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">{user.email}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {user.branches ? (
+                          <div className="flex items-center gap-1">
+                            <Building className="h-4 w-4 text-primary" />
+                            <span>{user.branches.name}</span>
+                            <span className="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+                              {user.branches.code}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">غير محدد</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                          user.role === 'admin' 
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' 
+                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                        }`}>
+                          {user.role === 'admin' ? 'مدير' : 'مستخدم'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`inline-flex rounded-full px-2 text-xs font-semibold ${
+                          user.is_active
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                          {user.is_active ? 'نشط' : 'غير نشط'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <div className="flex items-center gap-x-3">
+                          <button
+                            onClick={() => handleEdit(user)}
+                            className="text-primary hover:underline"
+                          >
+                            تعديل
+                          </button>
+                          
+                          {/* لا تعرض خيار التعطيل للمستخدم الحالي (الأدمن) */}
+                          {user.id !== dbUser?.id && (
+                            user.is_active ? (
+                              <button
+                                onClick={() => handleDeactivate(user)}
+                                className="text-red-600 hover:text-red-700 flex items-center gap-1"
+                                disabled={deleteLoading === user.id}
+                              >
+                                {deleteLoading === user.id ? (
+                                  <span className="inline-block h-4 w-4 rounded-full border-2 border-red-600/30 border-t-red-600 animate-spin"></span>
+                                ) : (
+                                  <UserX className="h-4 w-4" />
+                                )}
+                                <span>تعطيل</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleActivate(user)}
+                                className="text-green-600 hover:text-green-700 flex items-center gap-1"
+                                disabled={activateLoading === user.id}
+                              >
+                                {activateLoading === user.id ? (
+                                  <span className="inline-block h-4 w-4 rounded-full border-2 border-green-600/30 border-t-green-600 animate-spin"></span>
+                                ) : (
+                                  <UserCheck className="h-4 w-4" />
+                                )}
+                                <span>تنشيط</span>
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

@@ -64,7 +64,8 @@ export function useUsers() {
         if (errorData.error && (
           errorData.error.includes('already registered') ||
           errorData.error.includes('duplicate key') ||
-          errorData.error.includes('users_email_key')
+          errorData.error.includes('users_email_key') ||
+          errorData.error.includes('مسجل مسبقاً')
         )) {
           throw new Error('البريد الإلكتروني مسجل مسبقاً');
         } else {

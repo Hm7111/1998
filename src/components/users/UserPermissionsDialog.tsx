@@ -174,7 +174,7 @@ export function UserPermissionsDialog({ user, isOpen, onClose, onSuccess }: User
               </div>
             </div>
 
-            <div className="max-h-96 overflow-y-auto p-6 space-y-6">
+            <div className="max-h-96 overflow-y-auto p-4 space-y-6">
               {/* تنبيه للمدراء */}
               {user.role === 'admin' && (
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-900/30 p-4 rounded-lg text-yellow-800 dark:text-yellow-300 mb-4">

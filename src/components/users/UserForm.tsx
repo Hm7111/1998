@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { User, Branch, UserRole, Permission } from '../../types/database';
+import { User, Branch, UserRole, Permission } from '../../../types/database';
 import { BranchSelector } from '../../components/branches/BranchSelector';
 import { Eye, EyeOff, Shield, Info, Check } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../../lib/supabase';
 import { FormField } from '../ui/FormField';
 
 interface UserFormProps {
@@ -23,6 +23,7 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
   const [fullName, setFullName] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('user');
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [isActive, setIsActive] = useState(true);

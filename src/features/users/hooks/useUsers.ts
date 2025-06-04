@@ -40,26 +40,6 @@ export function useUsers() {
         return false;
       }
 
-      // التحقق من وجود المستخدم في نظام المصادقة أيضاً
-      const { data: authData, error: authError } = await supabase.auth.admin.listUsers({
-        filters: {
-          email: userData.email
-        }
-      });
-      
-      if (authError) {
-        console.error('Error checking auth users:', authError);
-      }
-      
-      if (authData?.users && authData.users.length > 0) {
-        toast({
-          title: 'خطأ',
-          description: 'البريد الإلكتروني مسجل مسبقاً في نظام المصادقة',
-          type: 'error',
-        });
-        return false;
-      }
-
       // استدعاء Edge Function لإنشاء المستخدم
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users`, {
         method: 'POST',

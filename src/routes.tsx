@@ -131,7 +131,7 @@ export function AppRoutes() {
         </Route>
         
         <Route path="/" element={<Navigate to="/login\" replace />} />
-        <Route path="/verify/:code" element={<VerifyLetter />} />
+        <Route path="/verify/:code\" element={<VerifyLetter />} />
       </Routes>
     </AuthProvider>
   )

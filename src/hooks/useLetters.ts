@@ -29,7 +29,8 @@ export function useLetters() {
     queryFn: async () => {
       // التحقق من صلاحيات المستخدم
       if (!hasPermission('view:letters')) {
-        throw new Error('ليس لديك صلاحية لعرض الخطابات');
+        console.warn('User does not have permission to view letters');
+        return [];
       }
 
       const isOnline = await checkConnection()
@@ -364,7 +365,8 @@ export function useLetters() {
     try {
       // التحقق من صلاحيات المستخدم
       if (!hasPermission('view:letters')) {
-        throw new Error('ليس لديك صلاحية لعرض الخطابات');
+        console.warn('User does not have permission to view letters');
+        return null;
       }
 
       // أولا تحقق من التخزين المؤقت

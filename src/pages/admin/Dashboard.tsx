@@ -18,10 +18,12 @@ import {
   ActivitySquare,
   Building,
   ArrowRight
+  Shield,
+  Settings
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
-import { useAuth, DEFAULT_PERMISSIONS, hasPermission } from '../../lib/auth';
+import { useAuth } from '../../lib/auth';
 import { motion } from 'framer-motion';
 import { BranchSelector } from '../../components/branches/BranchSelector';
 import { useToast } from '../../hooks/useToast';
@@ -37,19 +39,7 @@ export function Dashboard() {
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   
   // حساب التحية بناءً على الوقت الحالي
-  const hasLetterPermissions = dbUser && (
-    dbUser.role === 'admin' || 
-    DEFAULT_PERMISSIONS[dbUser.role]?.includes('view:letters') || 
-    DEFAULT_PERMISSIONS[dbUser.role]?.includes('create:letters') ||
-    (dbUser.permissions && Array.isArray(dbUser.permissions) && 
-     dbUser.permissions.some(p => 
-       (typeof p === 'string' && (p === 'view:letters' || p === 'create:letters')) ||
-       (typeof p === 'object' && p.type === 'role' && p.permissions && 
-        Array.isArray(p.permissions) && p.permissions.some(rp => 
-          rp === 'view:letters' || rp === 'create:letters'
-        ))
-     ))
-  );
+  const hasLetterPermissions = hasPermission('view:letters') || hasPermission('create:letters');
 
   useEffect(() => {
     const hour = new Date().getHours();

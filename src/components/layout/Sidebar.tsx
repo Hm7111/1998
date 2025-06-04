@@ -1,7 +1,7 @@
 import { FileText, Home, Settings, Users, History, Building, Shield, Key, ClipboardCheck, FileCheck, ListTodo } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { cn } from '../../lib/utils'
-import { useAuth, DEFAULT_PERMISSIONS } from '../../lib/auth'
+import { useAuth } from '../../lib/auth'
 import { useQuery } from '@tanstack/react-query'
 import { useWorkflow } from '../../hooks/useWorkflow'
 
@@ -14,7 +14,7 @@ export function Sidebar() {
   const { data: pendingApprovals = [] } = useQuery({
     queryKey: ['pendingApprovals'],
     queryFn: getPendingApprovals,
-    enabled: !!dbUser
+    enabled: !!dbUser && hasPermission('view:approvals')
   })
   
   // Define the unreadNotifications variable based on pending approvals count
@@ -29,27 +29,39 @@ export function Sidebar() {
         icon: Home, 
         permissions: []  // الرئيسية متاحة للجميع
       },
-      { 
+    ];
+    
+    // إضافة قسم الخطابات فقط إذا كان المستخدم يملك الصلاحية
+    if (hasPermission('view:letters') || hasPermission('create:letters')) {
+      items.push({ 
         name: 'الخطابات', 
         href: '/admin/letters', 
         icon: FileText, 
         permissions: ['view:letters', 'create:letters'],
         exact: false
-      },
-      {
+      });
+    }
+    
+    // إضافة قسم الموافقات فقط إذا كان المستخدم يملك الصلاحية
+    if (hasPermission('view:approvals') || hasPermission('view:approvals:own')) {
+      items.push({
         name: 'الموافقات',
         href: '/admin/approvals',
         icon: ClipboardCheck,
         permissions: ['view:approvals', 'view:approvals:own'],
         badge: unreadCount > 0 ? unreadCount : null
-      },
-      {
+      });
+    }
+    
+    // إضافة قسم المهام فقط إذا كان المستخدم يملك الصلاحية
+    if (hasPermission('view:tasks') || hasPermission('view:tasks:assigned') || hasPermission('view:tasks:own')) {
+      items.push({
         name: 'المهام',
         href: '/admin/tasks',
         icon: ListTodo,
         permissions: ['view:tasks', 'view:tasks:assigned', 'view:tasks:own']
-      }
-    ];
+      });
+    }
     
     if (isAdmin || hasPermission('view:users')) {
       items.push(
@@ -128,16 +140,6 @@ export function Sidebar() {
               ? location.pathname === item.href 
               : location.pathname === item.href || 
                 (item.href !== '/admin' && location.pathname.startsWith(item.href));
-                          
-            // Skip items that require permissions the user doesn't have
-            if (item.permissions && item.permissions.length > 0 && !hasPermission(item.permissions[0]) && !item.permissions.some(p => hasPermission(p))) {
-              return null;
-            }
-
-            // خاص بالخطابات: تحقق إضافي للتأكد من أن المستخدم لديه صلاحية الخطابات
-            if (item.href.includes('/letters') && !hasPermission('view:letters') && !hasPermission('create:letters')) {
-              return null;
-            }
             
             return (
               <Link
@@ -178,10 +180,12 @@ export function Sidebar() {
                   <span className="font-medium text-gray-300">237</span>
                 </div>
               )}
+            {hasPermission('view:approvals') && (
               <div className="flex justify-between">
                 <span>طلبات معلقة</span>
                 <span className="font-medium text-gray-300">{unreadCount}</span>
               </div>
+            )}
             </div>
           </div>
           

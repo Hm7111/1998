@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useThemeStore } from '../../store/theme'
 import { supabase } from '../../lib/supabase'
 import { useHotkeys } from '../../hooks/useHotkeys'
-import { useAuth, DEFAULT_PERMISSIONS } from '../../lib/auth'
+import { useAuth } from '../../lib/auth'
 import { useToast } from '../../hooks/useToast'
 import { useWorkflow } from '../../hooks/useWorkflow'
 import { useQuery } from '@tanstack/react-query'
@@ -27,7 +27,7 @@ export function Header() {
   const { data: pendingApprovals = [] } = useQuery({
     queryKey: ['pendingApprovals'],
     queryFn: getPendingApprovals,
-    enabled: !!dbUser,
+    enabled: !!dbUser && hasPermission('view:approvals'),
     refetchInterval: 60000, // تحديث كل دقيقة
   })
   
@@ -37,11 +37,7 @@ export function Header() {
   // تسجيل اختصارات لوحة المفاتيح
   useEffect(() => {
     // تحقق من صلاحيات المستخدم قبل تسجيل الاختصارات المتعلقة بالخطابات
-    const hasLetterPermissions = dbUser && (
-      dbUser.role === 'admin' || 
-      DEFAULT_PERMISSIONS[dbUser.role]?.includes('view:letters') || 
-      DEFAULT_PERMISSIONS[dbUser.role]?.includes('create:letters')
-    );
+    const hasLetterPermissions = hasPermission('view:letters') || hasPermission('create:letters');
 
     // تسجيل اختصارات لوحة المفاتيح
     registerHotkey('ctrl+k', () => document.querySelector<HTMLButtonElement>('#keyboard-shortcuts')?.click())
@@ -250,6 +246,7 @@ export function Header() {
             <button
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group relative text-gray-500 dark:text-gray-400"
               onClick={() => setShowNotifications(!showNotifications)}
+              style={{ display: hasPermission('view:approvals') ? 'block' : 'none' }}
             >
               <div className="relative">
                 <Bell className="h-5 w-5" />

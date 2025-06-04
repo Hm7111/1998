@@ -64,6 +64,17 @@ Deno.serve(async (req) => {
     // Parse request body
     const payload: CreateUserPayload = await req.json();
 
+    // Check if the user already exists
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', payload.email)
+      .maybeSingle();
+
+    if (existingUser) {
+      throw new Error('User already exists');
+    }
+
     // Create user in Auth
     const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
       email: payload.email,

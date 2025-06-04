@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { User, Branch, UserRole } from '../../types/database';
+import { User, Branch, UserRole } from '../../../types/database';
 import { BranchSelector } from '../../../components/branches/BranchSelector';
-import { Eye, EyeOff, Shield } from 'lucide-react';
+import { Eye, EyeOff, Shield, Info } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../../../lib/supabase';
 
 interface UserFormProps {
   user?: User;
-  onSubmit: (data: any) => void;
-  isLoading?: boolean;
+  onSubmit: (userData: any) => Promise<void>;
+  isLoading: boolean;
   branches: Branch[];
   roles: UserRole[];
 }
@@ -15,13 +17,13 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
-  const [roleId, setRoleId] = useState<string>(''); // معرف الدور الموحد
+  const [roleId, setRoleId] = useState<string>('');
   const [branchId, setBranchId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
-  // إعادة تعيين النموذج عند تغيير المستخدم المحدد
+  // إعادة تعيين النموذج عند تغيير المستخدم
   useEffect(() => {
     if (user) {
       setEmail(user.email);
@@ -39,14 +41,10 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
         if (customRole && customRole.id) {
           setRoleId(customRole.id);
         } else {
-          // إذا لم يكن هناك دور مخصص، نستخدم الدور الأساسي
-          const defaultRoleId = roles.find(r => r.name.toLowerCase() === user.role.toLowerCase())?.id;
-          setRoleId(defaultRoleId || '');
+          setRoleId('');
         }
       } else {
-        // إذا لم يكن هناك permissions، نستخدم الدور الأساسي
-        const defaultRoleId = roles.find(r => r.name.toLowerCase() === user.role.toLowerCase())?.id;
-        setRoleId(defaultRoleId || '');
+        setRoleId('');
       }
     } else {
       setEmail('');
@@ -56,7 +54,7 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       setPassword('');
       setIsActive(true);
     }
-  }, [user, roles]);
+  }, [user]);
   
   // التحقق من صحة النموذج
   const validateForm = () => {
@@ -112,16 +110,10 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       name: selectedRole.name
     }];
     
-    // تحديد الدور الأساسي من الدور المحدد
-    // نستخدم اسم الدور المحدد كدور أساسي إذا كان "admin" أو "user"، وإلا نستخدم "user"
-    const baseRole = selectedRole.name.toLowerCase() === 'admin' || selectedRole.name.toLowerCase() === 'user' 
-      ? selectedRole.name.toLowerCase() 
-      : 'user';
-    
     const userData = {
       email,
       full_name: fullName,
-      role: baseRole, // الدور الأساسي - إما 'admin' أو 'user'
+      role: selectedRole.name.toLowerCase() === 'admin' ? 'admin' : 'user', // تحديد الدور الأساسي
       branch_id: branchId,
       password,
       is_active: isActive,
@@ -129,6 +121,13 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
     };
     
     onSubmit(userData);
+  };
+
+  // الحصول على الدور المخصص الحالي
+  const getSelectedRoleName = () => {
+    if (!roleId) return null;
+    const role = roles.find(r => r.id === roleId);
+    return role ? role.name : null;
   };
   
   return (
@@ -172,6 +171,16 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       </div>
 
       <div className="border-t dark:border-gray-800 pt-4 mt-4">
+        <div className="mb-4">
+          <h3 className="text-md font-medium flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            إعدادات الدور والصلاحيات
+          </h3>
+          <p className="text-xs text-gray-500 mt-1">
+            اختر الدور المناسب للمستخدم الجديد
+          </p>
+        </div>
+
         <div>
           <label className="block text-sm font-medium mb-1">الدور <span className="text-red-500">*</span></label>
           <select

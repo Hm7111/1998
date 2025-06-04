@@ -97,7 +97,6 @@ async function handlePostRequest(req: Request) {
 
   try {
     // التحقق من وجود المستخدم قبل إنشائه - استخدام طريقة مباشرة أكثر موثوقية
-    // 1. أولاً، تحقق في قاعدة البيانات (users)
     const { data: existingDbUser, error: dbError } = await supabase
       .from('users')
       .select('id, email')
@@ -118,34 +117,6 @@ async function handlePostRequest(req: Request) {
       );
     }
     
-    // 2. ثانياً، تحقق في نظام المصادقة بطريقة أكثر مباشرة
-    try {
-      // استخدم signInWithOtp للتحقق غير المباشر من وجود المستخدم
-      // هذه الطريقة آمنة وتتجنب مشاكل صلاحيات admin.listUsers
-      const { error: signInError } = await supabase.auth.signInWithOtp({
-        email: payload.email,
-        options: {
-          shouldCreateUser: false // مهم: لا تقم بإنشاء مستخدم جديد
-        }
-      });
-      
-      if (signInError && !signInError.message.includes('Email not confirmed')) {
-        // إذا كان الخطأ شيء آخر غير "البريد الإلكتروني غير مؤكد"، فهذا يعني أن المستخدم غير موجود
-        // يمكننا المتابعة بإنشاء مستخدم جديد
-      } else {
-        // إذا لم يكن هناك خطأ أو كان الخطأ "البريد الإلكتروني غير مؤكد"، فهذا يعني أن المستخدم موجود
-        return new Response(
-          JSON.stringify({ error: 'البريد الإلكتروني مسجل مسبقاً في نظام المصادقة' }),
-          {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 400,
-          }
-        );
-      }
-    } catch (checkError) {
-      console.error('Error checking existing user:', checkError);
-      // في حالة حدوث خطأ في التحقق، نفترض أن المستخدم غير موجود ونحاول إنشاءه
-    }
     
     // إنشاء المستخدم في نظام المصادقة باستخدام Service Role (لديه جميع الصلاحيات)
     const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
@@ -160,7 +131,8 @@ async function handlePostRequest(req: Request) {
     if (createError) {
       // التعامل بشكل خاص مع أخطاء "البريد الإلكتروني موجود بالفعل"
       if (createError.message.includes('already registered') || 
-          createError.message.includes('User already exists')) {
+          createError.message.includes('User already exists') ||
+          createError.message.includes('duplicate key')) {
         return new Response(
           JSON.stringify({ error: 'البريد الإلكتروني مسجل مسبقاً في نظام المصادقة' }),
           {

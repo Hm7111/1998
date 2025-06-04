@@ -11,17 +11,6 @@ export function useUsers() {
     try {
       setIsLoading(true);
 
-      // التحقق من وجود البريد الإلكتروني
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', userData.email)
-        .single();
-      
-      if (existingUser) {
-        throw new Error('البريد الإلكتروني مسجل مسبقاً');
-      }
-      
       // Call the Edge Function to create user
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users`, {
         method: 'POST',
@@ -33,8 +22,13 @@ export function useUsers() {
       });
       
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'فشل إنشاء المستخدم');
+        const errorData = await response.json();
+        // Handle specific error cases from the Edge Function
+        if (errorData.error === 'User already exists') {
+          throw new Error('البريد الإلكتروني مسجل مسبقاً');
+        } else {
+          throw new Error(errorData.error || 'فشل إنشاء المستخدم');
+        }
       }
 
       const result = await response.json();

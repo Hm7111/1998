@@ -3,7 +3,7 @@ import { User, Branch, UserRole, Permission } from '../../../types/database';
 import { BranchSelector } from '../../components/branches/BranchSelector';
 import { Eye, EyeOff, Shield, Info, Check } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { FormField } from '../ui/FormField';
 
 interface UserFormProps {

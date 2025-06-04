@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useThemeStore } from '../../store/theme'
 import { supabase } from '../../lib/supabase'
 import { useHotkeys } from '../../hooks/useHotkeys'
-import { useAuth } from '../../lib/auth'
+import { useAuth, hasPermission } from '../../lib/auth'
 import { useToast } from '../../hooks/useToast'
 import { useWorkflow } from '../../hooks/useWorkflow'
 import { useQuery } from '@tanstack/react-query'
@@ -24,7 +24,7 @@ export function Header() {
   const { getPendingApprovals } = useWorkflow()
   
   // استعلام لجلب عدد طلبات الموافقة المعلقة
-  const { data: pendingApprovals = [] } = useQuery({
+  const { data: pendingApprovals = [], isLoading } = useQuery({
     queryKey: ['pendingApprovals'],
     queryFn: getPendingApprovals,
     enabled: !!dbUser && hasPermission('view:approvals'),

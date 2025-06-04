@@ -21,14 +21,14 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
-import { useAuth, DEFAULT_PERMISSIONS } from '../../lib/auth';
+import { useAuth, DEFAULT_PERMISSIONS, hasPermission } from '../../lib/auth';
 import { motion } from 'framer-motion';
 import { BranchSelector } from '../../components/branches/BranchSelector';
 import { useToast } from '../../hooks/useToast';
 
 export function Dashboard() {
   const navigate = useNavigate();
-  const { dbUser } = useAuth();
+  const { dbUser, hasPermission } = useAuth();
   const { toast } = useToast();
   
   const [period, setPeriod] = useState<'week' | 'month' | 'year'>('month');

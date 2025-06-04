@@ -17,7 +17,7 @@ import {
   LayoutDashboard,
   ActivitySquare,
   Building,
-  ArrowRight
+  ArrowRight,
   Shield,
   Settings
 } from 'lucide-react';

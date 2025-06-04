@@ -95,89 +95,123 @@ async function handlePostRequest(req: Request) {
     return await handlePasswordReset(payload.email);
   }
 
-  // التحقق من وجود المستخدم قبل إنشائه
-  const { data: existingUser } = await supabase
-    .from('users')
-    .select('id')
-    .eq('email', payload.email)
-    .maybeSingle();
-
-  if (existingUser) {
-    return new Response(
-      JSON.stringify({ error: 'البريد الإلكتروني مسجل مسبقاً' }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+  try {
+    // التحقق من وجود المستخدم قبل إنشائه - التحقق المزدوج
+    const { data: existingUsers, error: listError } = await supabase.auth.admin.listUsers({
+      filters: {
+        email: payload.email
       }
-    );
-  }
-
-  // إنشاء المستخدم في نظام المصادقة
-  const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-    email: payload.email,
-    password: payload.password,
-    email_confirm: true,
-    user_metadata: {
-      full_name: payload.full_name,
+    });
+    
+    if (listError) {
+      throw new Error(`Error checking existing users: ${listError.message}`);
     }
-  });
-
-  if (createError) {
-    return new Response(
-      JSON.stringify({ error: createError.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      }
-    );
-  }
-
-  if (!newUser.user) {
-    return new Response(
-      JSON.stringify({ error: 'Failed to create user' }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      }
-    );
-  }
-
-  // إدخال بيانات المستخدم في جدول المستخدمين
-  const { error: insertError } = await supabase
-    .from('users')
-    .insert({
-      id: newUser.user.id,
+    
+    if (existingUsers?.users && existingUsers.users.length > 0) {
+      return new Response(
+        JSON.stringify({ error: 'البريد الإلكتروني مسجل مسبقاً في نظام المصادقة' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
+    
+    // التحقق من جدول المستخدمين
+    const { data: existingDbUser, error: dbError } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('email', payload.email)
+      .maybeSingle();
+    
+    if (dbError) {
+      throw new Error(`Error checking database: ${dbError.message}`);
+    }
+    
+    if (existingDbUser) {
+      return new Response(
+        JSON.stringify({ error: 'البريد الإلكتروني مسجل مسبقاً في قاعدة البيانات' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
+    
+    // إنشاء المستخدم في نظام المصادقة
+    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
       email: payload.email,
-      full_name: payload.full_name,
-      role: payload.role,
-      branch_id: payload.branch_id,
-      permissions: payload.permissions,
-      is_active: payload.is_active ?? true
+      password: payload.password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: payload.full_name,
+      }
     });
 
-  if (insertError) {
-    // تنظيف: حذف المستخدم من نظام المصادقة إذا فشل الإدخال
-    await supabase.auth.admin.deleteUser(newUser.user.id);
+    if (createError) {
+      throw new Error(`Error creating auth user: ${createError.message}`);
+    }
+
+    if (!newUser.user) {
+      throw new Error('Failed to create user');
+    }
+
+    // إدخال بيانات المستخدم في جدول المستخدمين
+    const { error: insertError } = await supabase
+      .from('users')
+      .insert({
+        id: newUser.user.id,
+        email: payload.email,
+        full_name: payload.full_name,
+        role: payload.role,
+        branch_id: payload.branch_id,
+        permissions: payload.permissions,
+        is_active: payload.is_active ?? true
+      });
+
+    if (insertError) {
+      // تنظيف: حذف المستخدم من نظام المصادقة إذا فشل الإدخال
+      await supabase.auth.admin.deleteUser(newUser.user.id);
+      throw new Error(`Error inserting user data: ${insertError.message}`);
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        message: 'تم إنشاء المستخدم بنجاح',
+        user: newUser.user
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    );
+  } catch (error) {
+    // لوج الخطأ للتشخيص
+    console.error("Error in user creation:", error);
+    
+    // التعامل مع خطأ تكرار البريد الإلكتروني بشكل خاص
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    
+    if (errorMessage.includes('duplicate key') || 
+        errorMessage.includes('already registered') || 
+        errorMessage.includes('users_email_key')) {
+      return new Response(
+        JSON.stringify({ error: 'البريد الإلكتروني مسجل مسبقاً' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
     
     return new Response(
-      JSON.stringify({ error: insertError.message }),
+      JSON.stringify({ error: errorMessage }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       }
     );
   }
-
-  return new Response(
-    JSON.stringify({ 
-      message: 'تم إنشاء المستخدم بنجاح',
-      user: newUser.user
-    }),
-    {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    }
-  );
 }
 
 /**

@@ -22,14 +22,39 @@ export function useUsers() {
       // التحقق من وجود المستخدم قبل إنشائه
       const { data: existingUser, error: checkError } = await supabase
         .from('users')
-        .select('id')
+        .select('id, email')
         .eq('email', userData.email)
         .maybeSingle();
 
+      if (checkError) {
+        console.error('Error checking for existing user:', checkError);
+      }
+
+      // إذا كان المستخدم موجوداً بالفعل، نظهر رسالة خطأ
       if (existingUser) {
         toast({
           title: 'خطأ',
           description: 'البريد الإلكتروني مسجل مسبقاً',
+          type: 'error',
+        });
+        return false;
+      }
+
+      // التحقق من وجود المستخدم في نظام المصادقة أيضاً
+      const { data: authData, error: authError } = await supabase.auth.admin.listUsers({
+        filters: {
+          email: userData.email
+        }
+      });
+      
+      if (authError) {
+        console.error('Error checking auth users:', authError);
+      }
+      
+      if (authData?.users && authData.users.length > 0) {
+        toast({
+          title: 'خطأ',
+          description: 'البريد الإلكتروني مسجل مسبقاً في نظام المصادقة',
           type: 'error',
         });
         return false;
@@ -55,7 +80,12 @@ export function useUsers() {
       
       if (!response.ok) {
         const errorData = await response.json();
-        if (errorData.error && errorData.error.includes('already registered')) {
+        // معالجة خطأ البريد المكرر بشكل واضح
+        if (errorData.error && (
+          errorData.error.includes('already registered') ||
+          errorData.error.includes('duplicate key') ||
+          errorData.error.includes('users_email_key')
+        )) {
           throw new Error('البريد الإلكتروني مسجل مسبقاً');
         } else {
           throw new Error(errorData.error || 'فشل إنشاء المستخدم');

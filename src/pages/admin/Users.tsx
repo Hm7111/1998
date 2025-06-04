@@ -339,8 +339,7 @@ export function Users() {
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الاسم</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">البريد الإلكتروني</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الفرع</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الدور الأساسي</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الدور المخصص</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الدور</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الحالة</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الإجراءات</th>
                   </tr>
@@ -381,20 +380,11 @@ export function Users() {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                            user.role === 'admin' 
-                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' 
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                          }`}>
-                            {user.role === 'admin' ? 'مدير' : 'مستخدم'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {customRoleName ? (
+                          {customRoleName || user.role ? (
                             <div className="flex items-center gap-1.5">
                               <Shield className="h-4 w-4 text-primary" />
                               <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                                {customRoleName}
+                                {customRoleName || (user.role === 'admin' ? 'مدير' : 'مستخدم')}
                               </span>
                             </div>
                           ) : (

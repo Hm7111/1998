@@ -28,7 +28,7 @@ export function useUsers() {
       if (existingUser) {
         throw new Error('البريد الإلكتروني مسجل مسبقاً');
       }
-      
+
       // Call the Edge Function to create user
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users`, {
         method: 'POST',

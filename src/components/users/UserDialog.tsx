@@ -32,22 +32,6 @@ export function UserDialog({ user, isOpen, onClose, onSuccess }: Props) {
     refetchOnWindowFocus: false
   });
 
-  // جلب الأدوار
-  const { data: roles = [] } = useQuery({
-    queryKey: ['user-roles'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('*')
-        .order('name');
-        
-      if (error) throw error;
-      return data;
-    },
-    staleTime: 1000 * 60 * 5, // 5 دقائق
-    refetchOnWindowFocus: false
-  });
-
   // معالجة تقديم النموذج
   async function handleSubmit(userData: any) {
     try {
@@ -93,7 +77,6 @@ export function UserDialog({ user, isOpen, onClose, onSuccess }: Props) {
             onSubmit={handleSubmit}
             isLoading={isLoading}
             branches={branches}
-            roles={roles}
           />
         </div>
       </div>

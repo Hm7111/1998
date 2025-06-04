@@ -9,7 +9,6 @@ import { Branches } from './pages/admin/Branches'
 import { Settings } from './pages/admin/Settings'
 import { VerifyLetter } from './pages/VerifyLetter'
 import { AuditLogs } from './pages/admin/AuditLogs'
-import { PermissionsManager } from './pages/admin/permissions'
 // Importar páginas de cartas desde la ruta correcta
 import { LetterEditor, ViewLetter, EditLetter } from './features/letters/pages'
 import { AuthProvider } from './lib/auth'
@@ -92,12 +91,6 @@ export function AppRoutes() {
             </PermissionRoute>
           } />
           
-          <Route path="permissions" element={
-            <PermissionRoute permissions={['view:permissions']}>
-              <PermissionsManager />
-            </PermissionRoute>
-          } />
-          
           <Route path="settings" element={<Settings />} />
           
           <Route path="audit-logs" element={
@@ -130,8 +123,8 @@ export function AppRoutes() {
           } />
         </Route>
         
-        <Route path="/" element={<Navigate to="/login\" replace />} />
-        <Route path="/verify/:code\" element={<VerifyLetter />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/verify/:code" element={<VerifyLetter />} />
       </Routes>
     </AuthProvider>
   )

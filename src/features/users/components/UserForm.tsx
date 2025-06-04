@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Branch, UserRole } from '../types';
+import { User, Branch } from '../types';
 import { BranchSelector } from '../../../components/branches/BranchSelector';
 import { Eye, EyeOff, Shield, Info } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -10,22 +10,36 @@ interface UserFormProps {
   onSubmit: (userData: any) => Promise<void>;
   isLoading: boolean;
   branches: Branch[];
-  roles: UserRole[];
 }
 
 /**
  * نموذج إنشاء وتعديل المستخدم
  */
-export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFormProps) {
+export function UserForm({ user, onSubmit, isLoading, branches }: UserFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('user'); // الدور الأساسي - إما 'admin' أو 'user' فقط
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null); // معرف الدور المخصص
   const [branchId, setBranchId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [permissions, setPermissions] = useState<string[]>([]);
+  
+  // جلب قائمة الصلاحيات
+  const { data: permissionsList = [] } = useQuery({
+    queryKey: ['permissions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('permissions')
+        .select('id, name, code, description')
+        .order('code');
+      
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 1000 * 60 * 5 // 5 دقائق
+  });
   
   // إعادة تعيين النموذج عند تغيير المستخدم
   useEffect(() => {
@@ -37,25 +51,17 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       setPassword('');
       setIsActive(user.is_active !== false);
       
-      // البحث عن الدور المخصص في permissions
+      // استخراج الصلاحيات من permissions
       if (user.permissions && Array.isArray(user.permissions)) {
-        const customRole = user.permissions.find(p => 
-          typeof p === 'object' && p.type === 'role'
-        );
-        
-        if (customRole && customRole.id) {
-          setSelectedRoleId(customRole.id);
-        } else {
-          setSelectedRoleId(null);
-        }
+        setPermissions(user.permissions.filter(p => typeof p === 'string'));
       } else {
-        setSelectedRoleId(null);
+        setPermissions([]);
       }
     } else {
       setEmail('');
       setFullName('');
       setRole('user');
-      setSelectedRoleId(null);
+      setPermissions([]);
       setBranchId(null);
       setPassword('');
       setIsActive(true);
@@ -110,14 +116,6 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       newErrors.password = 'كلمة المرور يجب ألا تقل عن 6 أحرف';
     }
     
-    // التحقق من وجود الدور المخصص
-    if (selectedRoleId) {
-      const roleExists = roles.some(r => r.id === selectedRoleId);
-      if (!roleExists) {
-        newErrors.custom_role = 'الدور المخصص المحدد غير موجود';
-      }
-    }
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -128,19 +126,6 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
     
     if (!validateForm()) {
       return;
-    }
-    
-    // إنشاء مصفوفة permissions مع الدور المخصص إذا تم اختياره
-    let permissions = [];
-    if (selectedRoleId) {
-      const selectedRole = roles.find(r => r.id === selectedRoleId);
-      if (selectedRole) {
-        permissions.push({
-          type: 'role',
-          id: selectedRoleId,
-          name: selectedRole.name
-        });
-      }
     }
     
     const userData = {
@@ -156,13 +141,6 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
     onSubmit(userData);
   };
 
-  // الحصول على الدور المخصص الحالي
-  const getSelectedRoleName = () => {
-    if (!selectedRoleId) return null;
-    const role = roles.find(r => r.id === selectedRoleId);
-    return role ? role.name : null;
-  };
-  
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
@@ -210,7 +188,7 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
             إعدادات الدور والصلاحيات
           </h3>
           <p className="text-xs text-gray-500 mt-1">
-            يمكنك تعيين دور أساسي (مدير أو مستخدم) ودور مخصص إضافي
+            حدد دور المستخدم الأساسي والصلاحيات الإضافية المطلوبة
           </p>
         </div>
 
@@ -242,36 +220,24 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
 
         <div className="mt-4">
           <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium">الدور المخصص</label>
+            <label className="block text-sm font-medium">الصلاحيات الإضافية</label>
             <div className="group relative">
               <Info className="h-4 w-4 text-gray-400 cursor-pointer" />
               <div className="absolute bottom-full right-0 mb-2 w-60 p-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
-                الدور المخصص يمنح المستخدم صلاحيات إضافية محددة في نظام إدارة الصلاحيات
+                يمكنك تعديل صلاحيات المستخدم بشكل مفصل بعد إنشاء الحساب من صفحة إدارة المستخدمين
               </div>
             </div>
           </div>
-          <select
-            value={selectedRoleId || ''}
-            onChange={(e) => setSelectedRoleId(e.target.value || null)}
-            className={`w-full p-2 border rounded-lg ${
-              errors.custom_role ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
-            }`}
-          >
-            <option value="">بدون دور مخصص</option>
-            {roles.map(roleItem => (
-              <option key={roleItem.id} value={roleItem.id}>
-                {roleItem.name} {roleItem.permissions?.length === 0 ? '(بدون صلاحيات)' : ''}
-              </option>
-            ))}
-          </select>
-          {errors.custom_role && (
-            <p className="text-red-500 text-xs mt-1">{errors.custom_role}</p>
-          )}
-          <p className="text-gray-500 text-xs mt-1">
-            {selectedRoleId
-              ? `الدور المخصص: ${getSelectedRoleName()}`
-              : 'اختر دورًا مخصصًا لمنح المستخدم صلاحيات إضافية'}
-          </p>
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-lg">
+            <div className="flex items-start gap-2">
+              <Info className="h-5 w-5 mt-0.5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+              <div>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  سيتم تمكينك من إدارة صلاحيات المستخدم بشكل مفصل بعد إنشاء الحساب
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -1,22 +1,29 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Plus, 
   FileText, 
   Search, 
+  Filter, 
+  SortAsc, 
+  SortDesc,
+  FileCheck,
+  Calendar,
+  Building,
+  User,
+  Flag,
+  CheckCircle,
   Clock, 
-  Calendar, 
+  ClipboardList, 
   PlusCircle, 
   BarChartHorizontal, 
-  CheckCircle, 
-  UserCircle, 
   Bell,
   Sparkles,
   BookOpen,
   Rocket,
   LayoutDashboard,
   ActivitySquare,
-  Building,
+  Building as BuildingIcon,
   ArrowRight,
   Shield,
   Settings
@@ -579,7 +586,7 @@ export function Dashboard() {
                 className="w-full flex items-center p-4 rounded-lg transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50 border-2 border-gray-100 dark:border-gray-700"
               >
                 <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center ml-4">
-                  <Building className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  <BuildingIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div className="flex-1 text-right">
                   <h3 className="font-semibold text-gray-800 dark:text-white">إدارة الفروع</h3>
@@ -957,4 +964,26 @@ export function Dashboard() {
       </motion.div>
     </div>
   );
+}
+
+// أيقونات إضافية
+function UserCircle(props: any) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="24" 
+      height="24" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+      {...props}
+    >
+      <circle cx="12" cy="12" r="10"></circle>
+      <circle cx="12" cy="10" r="3"></circle>
+      <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
+    </svg>
+  )
 }

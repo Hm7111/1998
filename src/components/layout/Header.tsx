@@ -19,7 +19,6 @@ export function Header() {
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   
-  const [unreadNotifications, setUnreadNotifications] = useState(0)
   const [showNotifications, setShowNotifications] = useState(false)
   
   const { getPendingApprovals } = useWorkflow()
@@ -33,9 +32,7 @@ export function Header() {
   })
   
   // تحديث عدد الإشعارات غير المقروءة
-  useEffect(() => {
-    setUnreadNotifications(pendingApprovals.length);
-  }, [pendingApprovals]);
+  const unreadNotifications = pendingApprovals.length;
   
   // تسجيل اختصارات لوحة المفاتيح
   useEffect(() => {
@@ -181,36 +178,27 @@ export function Header() {
         </div>
       )}
     
-      <header className="bg-[#0f172a] text-white border-b border-gray-700/20 sticky top-0 z-30 transition-colors duration-300">
+      <header className="bg-white shadow-sm dark:bg-gray-800 sticky top-0 z-30 transition-colors duration-300">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-x-4">
             {/* زر القائمة الجانبية للشاشات الصغيرة */}
             <button 
-              className="md:hidden p-2 text-gray-300 hover:text-white"
+              className="md:hidden p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               onClick={() => setShowMobileMenu(!showMobileMenu)}
             >
               {showMobileMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            
-            <Link to="/admin" className="flex items-center gap-x-2">
-              <img 
-                src="https://hbxalipjrbcrqljddxfp.supabase.co/storage/v1/object/public/templates//logo.png" 
-                alt="الجمعية السعودية للإعاقة السمعية" 
-                className="h-10 object-contain brightness-0 invert contrast-200 transition-all duration-300" 
-              />
-              <h1 className="text-xl font-bold hidden sm:block">نظام إدارة الخطابات</h1>
-            </Link>
           </div>
           
           {/* شريط البحث في الوسط */}
-          <div className="hidden md:flex items-center gap-1 px-3 py-1.5 bg-gray-800/70 rounded-lg w-1/3 max-w-md">
-            <Search className="h-4 w-4 text-gray-400" />
+          <div className="hidden md:flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-gray-700/50 rounded-lg w-1/3 max-w-md">
+            <Search className="h-4 w-4 text-gray-500 dark:text-gray-400" />
             <input
               type="text"
               placeholder="بحث سريع..."
-              className="bg-transparent w-full text-sm focus:outline-none text-gray-300 placeholder-gray-500"
+              className="bg-transparent w-full text-sm focus:outline-none"
             />
-            <kbd className="hidden sm:inline-flex text-xs bg-gray-700 px-2 py-0.5 rounded text-gray-400">
+            <kbd className="hidden sm:inline-flex text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-500 dark:text-gray-400">
               /
             </kbd>
           </div>
@@ -218,7 +206,7 @@ export function Header() {
           <div className="flex items-center gap-x-1.5">
             <button
               id="keyboard-shortcuts"
-              className="p-2 rounded-lg hover:bg-gray-800 group relative text-gray-400 hover:text-gray-200"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group relative text-gray-500 dark:text-gray-400"
               title="اختصارات لوحة المفاتيح (Ctrl+K)"
               onClick={() => setShowShortcuts(true)}
             >
@@ -235,7 +223,7 @@ export function Header() {
 
             <button
               id="help-guide"
-              className="p-2 rounded-lg hover:bg-gray-800 group relative text-gray-400 hover:text-gray-200"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group relative text-gray-500 dark:text-gray-400"
               title="دليل المستخدم (Ctrl+H)"
             >
               <HelpCircle className="h-5 w-5" />
@@ -245,7 +233,7 @@ export function Header() {
             </button>
             
             <button
-              className="p-2 rounded-lg hover:bg-gray-800 group relative text-gray-400 hover:text-gray-200"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group relative text-gray-500 dark:text-gray-400"
               onClick={() => setShowNotifications(!showNotifications)}
             >
               <div className="relative">
@@ -260,7 +248,7 @@ export function Header() {
 
             <button
               onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-              className="p-2 rounded-lg hover:bg-gray-800 group relative text-gray-400 hover:text-gray-200"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group relative text-gray-500 dark:text-gray-400"
               title="تبديل المظهر (Ctrl+D)"
             >
               {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
@@ -273,33 +261,33 @@ export function Header() {
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-2 text-sm ml-3 p-1.5 rounded-full overflow-hidden hover:bg-gray-800 relative"
+                className="flex items-center gap-2 text-sm ml-3 p-1.5 rounded-full overflow-hidden hover:bg-gray-100 dark:hover:bg-gray-700 relative"
                 title="حساب المستخدم"
               >
-                <div className="w-7 h-7 rounded-full bg-primary/30 text-primary-foreground flex items-center justify-center">
+                <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center">
                   <User className="h-4 w-4" />
                 </div>
                 <span className="hidden sm:block font-medium truncate max-w-[100px]">
                   {dbUser?.full_name || 'المستخدم'}
                 </span>
                 {dbUser?.branch?.code && (
-                  <span className="hidden sm:inline-block text-xs bg-blue-900/60 text-blue-200 px-2 py-0.5 rounded-full ml-1">
+                  <span className="hidden sm:inline-block text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full ml-1">
                     {dbUser.branch.code}
                   </span>
                 )}
               </button>
               
               {showUserMenu && (
-                <div className="absolute left-0 top-full mt-1 w-64 bg-[#0f172a] rounded-lg border border-gray-700 shadow-lg overflow-hidden z-50">
-                  <div className="p-3 border-b border-gray-700">
+                <div className="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-gray-900 rounded-lg border dark:border-gray-800 shadow-lg overflow-hidden z-50">
+                  <div className="p-3 border-b dark:border-gray-800">
                     <p className="font-medium">{dbUser?.full_name || 'المستخدم'}</p>
-                    <p className="text-sm text-gray-400">{dbUser?.email}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{dbUser?.email}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <p className="text-xs bg-blue-900/60 text-blue-300 inline-block px-2 py-0.5 rounded-full">
+                      <p className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 inline-block px-2 py-0.5 rounded-full">
                         {dbUser?.role === 'admin' ? 'مدير' : 'مستخدم'}
                       </p>
                       {dbUser?.branch && (
-                        <p className="text-xs bg-green-900/60 text-green-300 inline-block px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <p className="text-xs bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 inline-block px-2 py-0.5 rounded-full flex items-center gap-1">
                           <Building className="h-3 w-3" />
                           {dbUser.branch.name} ({dbUser.branch.code})
                         </p>
@@ -310,7 +298,7 @@ export function Header() {
                   <div className="py-1">
                     <Link
                       to="/admin/settings"
-                      className="flex items-center gap-x-2 px-3 py-2 text-sm hover:bg-gray-800"
+                      className="flex items-center gap-x-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
                       onClick={() => setShowUserMenu(false)}
                     >
                       <Settings className="h-4 w-4" />
@@ -319,7 +307,7 @@ export function Header() {
                     
                     <button
                       onClick={handleLogout}
-                      className="w-full text-right flex items-center gap-x-2 px-3 py-2 text-sm text-red-400 hover:bg-red-900/20"
+                      className="w-full text-right flex items-center gap-x-2 px-3 py-2 text-sm text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                     >
                       <LogOut className="h-4 w-4" />
                       تسجيل الخروج
@@ -340,7 +328,7 @@ export function Header() {
           <div className="absolute inset-y-0 right-0 w-64 bg-[#0f172a] shadow-lg" onClick={e => e.stopPropagation()}>
             {/* محتوى القائمة الجانبية للجوال */}
             <div className="p-4 border-b border-gray-700/20 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/20 text-primary-foreground flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center">
                 <User className="h-5 w-5" />
               </div>
               <div>
@@ -375,7 +363,7 @@ export function Header() {
               <div className="border-t border-gray-700/20 my-2 pt-2">
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-x-3 px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-900/20 w-full text-right"
+                  className="flex items-center gap-x-3 px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-900/20 w-full text-right"
                 >
                   <LogOut className="h-5 w-5" />
                   تسجيل الخروج

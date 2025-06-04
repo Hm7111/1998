@@ -16,7 +16,7 @@ export function useLetters() {
   const queryClient = useQueryClient()
   const [isOffline, setIsOffline] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
-  const { user, dbUser } = useAuth()
+  const { user, dbUser, hasPermission } = useAuth()
   const { toast } = useToast()
   const [loadingState, setLoadingState] = useState<Record<string, boolean>>({})
 
@@ -27,6 +27,11 @@ export function useLetters() {
   const { data: letters = [], isLoading, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('view:letters')) {
+        throw new Error('ليس لديك صلاحية لعرض الخطابات');
+      }
+
       const isOnline = await checkConnection()
       if (!isOnline) {
         setIsOffline(true)
@@ -39,13 +44,7 @@ export function useLetters() {
         .select('*, letter_templates(id, name, image_url)'); // تحسين: تحديد الحقول المطلوبة فقط
       
       // إذا كان المستخدم مديراً، اعرض جميع الخطابات، وإلا اعرض خطابات المستخدم فقط
-      const { data: userData } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user?.id)
-        .single();
-      
-      if (!userData || userData.role !== 'admin') {
+      if (!hasPermission('view:letters:all')) {
         query = query.eq('user_id', user?.id);
       }
       
@@ -142,6 +141,11 @@ export function useLetters() {
   // تحسين: تنفيذ عمليات التغيير باستخدام useMutation مع التخزين المؤقت الذكي
   const createMutation = useMutation({
     mutationFn: async (letter: Partial<Letter>) => {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('create:letters')) {
+        throw new Error('ليس لديك صلاحية لإنشاء خطابات');
+      }
+
       if (!letter.template_id) {
         throw new Error('يجب اختيار قالب للخطاب')
       }
@@ -198,6 +202,12 @@ export function useLetters() {
 
   const updateMutation = useMutation({
     mutationFn: async (letter: Partial<Letter>) => {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('edit:letters') && 
+          !(hasPermission('edit:letters:own') && letter.user_id === user?.id)) {
+        throw new Error('ليس لديك صلاحية لتعديل هذا الخطاب');
+      }
+
       setLoadingState(prev => ({ ...prev, [letter.id!]: true }))
       
       const { data, error } = await supabase
@@ -238,6 +248,20 @@ export function useLetters() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      // التحقق من صلاحيات المستخدم
+      const { data: letterData, error: fetchError } = await supabase
+        .from('letters')
+        .select('user_id')
+        .eq('id', id)
+        .single();
+        
+      if (fetchError) throw fetchError;
+      
+      if (!hasPermission('delete:letters') && 
+          !(hasPermission('delete:letters:own') && letterData.user_id === user?.id)) {
+        throw new Error('ليس لديك صلاحية لحذف هذا الخطاب');
+      }
+
       setLoadingState(prev => ({ ...prev, [id]: true }))
       
       const { error } = await supabase
@@ -304,6 +328,11 @@ export function useLetters() {
     if (!letters.length) return
     
     try {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('create:letters')) {
+        throw new Error('ليس لديك صلاحية لإنشاء خطابات');
+      }
+
       // تنفيذ العملية في معاملة واحدة
       const { error } = await supabase
         .from('letters')
@@ -333,6 +362,11 @@ export function useLetters() {
   // تحسين: جلب خطاب واحد مع تخزين مؤقت
   const getLetter = useCallback(async (id: string): Promise<Letter | null> => {
     try {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('view:letters')) {
+        throw new Error('ليس لديك صلاحية لعرض الخطابات');
+      }
+
       // أولا تحقق من التخزين المؤقت
       const cachedLetter = queryClient.getQueryData<Letter[]>(queryKey)?.find(l => l.id === id);
       
@@ -348,6 +382,11 @@ export function useLetters() {
         .single();
         
       if (error) throw error;
+      
+      // التحقق من صلاحيات المستخدم للخطاب المحدد
+      if (!hasPermission('view:letters:all') && data.user_id !== user?.id) {
+        throw new Error('ليس لديك صلاحية لعرض هذا الخطاب');
+      }
       
       // تخزين النتيجة في ذاكرة التخزين المؤقت
       if (data) {

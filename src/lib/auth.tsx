@@ -204,12 +204,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // If user has custom permissions assigned
     if (dbUser.permissions && Array.isArray(dbUser.permissions)) {
-      // Get permissions by ID from database
-      for (const permId of dbUser.permissions) {
-        // Here we would ideally fetch the actual permission code by ID
-        // For now, we'll just use the ID as is (this would need improvement)
-        userCustomPermissions.push(permId);
-      }
+      // Extract direct permissions (strings) and permissions from custom roles
+      dbUser.permissions.forEach(perm => {
+        if (typeof perm === 'string') {
+          userCustomPermissions.push(perm);
+        } else if (typeof perm === 'object' && perm.type === 'role' && perm.permissions) {
+          // If this is a role object with permissions array, add those permissions
+          if (Array.isArray(perm.permissions)) {
+            userCustomPermissions.push(...perm.permissions);
+          }
+        }
+      });
     }
     
     // Combine default and custom permissions

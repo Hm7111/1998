@@ -6,6 +6,7 @@ import { Template } from '../../../../../types/database';
 import EditorControls from './EditorControls';
 import PreviewPane from './PreviewPane';
 import { useToast } from '../../../../../hooks/useToast';
+import { useAuth } from '../../../../../lib/auth';
 
 // تحميل المحرر بطريقة كسولة للأداء الأمثل
 const RichTextWrapper = lazy(() => import('./RichTextWrapper'));
@@ -55,6 +56,7 @@ export default function ContentStep({
   onShowTemplateSelector,
 }: ContentStepProps) {
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
   
   // معالجة زر "التالي"
   const handleNext = () => {

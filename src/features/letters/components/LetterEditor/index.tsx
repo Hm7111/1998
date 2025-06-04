@@ -51,7 +51,7 @@ export function LetterEditor() {
     subject: '',
     to: ''
   });
-  const { dbUser, user } = useAuth();
+  const { dbUser, user, hasPermission } = useAuth();
   const [currentYear] = useState(new Date().getFullYear());
   const [nextNumber, setNextNumber] = useState<number | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
@@ -80,6 +80,17 @@ export function LetterEditor() {
 
   // Load templates and setup autosave
   useEffect(() => {
+    // التحقق من صلاحيات المستخدم
+    if (!hasPermission('create:letters')) {
+      toast({
+        title: 'خطأ',
+        description: 'ليس لديك صلاحية لإنشاء خطابات',
+        type: 'error'
+      });
+      navigate('/admin');
+      return;
+    }
+
     loadTemplates();
     
     // حفظ المسودة تلقائياً كل دقيقة
@@ -96,7 +107,7 @@ export function LetterEditor() {
     return () => {
       if (autosaveInterval) clearInterval(autosaveInterval);
     };
-  }, [templateId, content, dbUser?.id, autosaveEnabled]);
+  }, [templateId, content, dbUser?.id, autosaveEnabled, hasPermission, navigate]);
 
   useEffect(() => {
     if (templateId) {
@@ -212,6 +223,17 @@ export function LetterEditor() {
 
   async function handleSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault();
+    
+    // التحقق من صلاحيات المستخدم
+    if (!hasPermission('create:letters')) {
+      toast({
+        title: 'خطأ',
+        description: 'ليس لديك صلاحية لإنشاء خطابات',
+        type: 'error'
+      });
+      return;
+    }
+    
     setIsLoading(true);
     
     const verificationUrl = crypto.randomUUID();
@@ -300,6 +322,16 @@ export function LetterEditor() {
   async function handlePrint() {
     if (!templateId) return;
     
+    // التحقق من صلاحيات المستخدم
+    if (!hasPermission('export:letters')) {
+      toast({
+        title: 'خطأ',
+        description: 'ليس لديك صلاحية لطباعة الخطابات',
+        type: 'error'
+      });
+      return;
+    }
+    
     try {
       toast({
         title: 'جارِ الطباعة...',
@@ -342,6 +374,16 @@ export function LetterEditor() {
 
   async function handleExportPDF() {
     if (!templateId) return;
+    
+    // التحقق من صلاحيات المستخدم
+    if (!hasPermission('export:letters')) {
+      toast({
+        title: 'خطأ',
+        description: 'ليس لديك صلاحية لتصدير الخطابات',
+        type: 'error'
+      });
+      return;
+    }
     
     setIsExporting(true);
     try {

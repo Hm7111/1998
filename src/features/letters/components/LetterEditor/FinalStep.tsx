@@ -3,6 +3,7 @@ import { Save, Download, Printer } from 'lucide-react';
 import { LetterContent } from '../../types';
 import { Template } from '../../../../types/database';
 import { useToast } from '../../../../hooks/useToast';
+import { useAuth } from '../../../../lib/auth';
 
 interface FinalStepProps {
   content: LetterContent;
@@ -33,9 +34,20 @@ export default function FinalStep({
   prevStep
 }: FinalStepProps) {
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
   
   // التحقق من وجود البيانات المطلوبة قبل الحفظ
   const handleSaveClick = () => {
+    // التحقق من صلاحيات المستخدم
+    if (!hasPermission('create:letters')) {
+      toast({
+        title: 'خطأ',
+        description: 'ليس لديك صلاحية لإنشاء خطابات',
+        type: 'error'
+      });
+      return;
+    }
+    
     if (!content.subject?.trim() || !content.to?.trim()) {
       toast({
         title: 'حقول مطلوبة',
@@ -145,30 +157,36 @@ export default function FinalStep({
         </div>
         
         <div className="flex gap-2 mt-2 sm:mt-0">
-          <button
-            onClick={onPrintClick}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2"
-          >
-            <Printer className="h-4 w-4" />
-            <span>طباعة</span>
-          </button>
+          {hasPermission('export:letters') && (
+            <button
+              onClick={onPrintClick}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2"
+            >
+              <Printer className="h-4 w-4" />
+              <span>طباعة</span>
+            </button>
+          )}
           
-          <button
-            onClick={onExportClick}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            <span>تصدير PDF</span>
-          </button>
+          {hasPermission('export:letters') && (
+            <button
+              onClick={onExportClick}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              <span>تصدير PDF</span>
+            </button>
+          )}
           
-          <button
-            onClick={handleSaveClick}
-            disabled={isLoading}
-            className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2"
-          >
-            <Save className="h-4 w-4" />
-            <span>{isLoading ? 'جارٍ الحفظ...' : 'حفظ الخطاب'}</span>
-          </button>
+          {hasPermission('create:letters') && (
+            <button
+              onClick={handleSaveClick}
+              disabled={isLoading}
+              className="px-4 py-2 bg-primary text-white rounded-lg flex items-center gap-2"
+            >
+              <Save className="h-4 w-4" />
+              <span>{isLoading ? 'جارٍ الحفظ...' : 'حفظ الخطاب'}</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

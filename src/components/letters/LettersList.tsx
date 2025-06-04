@@ -29,7 +29,7 @@ interface LetterListProps {}
 
 export function LettersList({}: LetterListProps) {
   const navigate = useNavigate();
-  const { dbUser } = useAuth();
+  const { dbUser, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
@@ -47,24 +47,39 @@ export function LettersList({}: LetterListProps) {
     queryFn: async () => {
       if (!dbUser?.id) return [];
       
-      let query = supabase
-        .from('letters')
-        .select('*, letter_templates(*)');
-      
-      // إذا لم يكن المستخدم مديراً، قم بعرض خطاباته فقط
-      if (dbUser.role !== 'admin') {
-        query = query.eq('user_id', dbUser.id);
-      } else if (branchFilter) {
-        // إذا كان المستخدم مديراً وتم تحديد فرع، اعرض خطابات ذلك الفرع
-        query = query.eq('branch_code', branchFilter);
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('view:letters')) {
+        throw new Error('ليس لديك صلاحية لعرض الخطابات');
       }
       
-      query = query.order(sortField, { ascending: sortDirection === 'asc' });
-      
-      const { data, error } = await query;
-      
-      if (error) throw error;
-      return data;
+      try {
+        let query = supabase
+          .from('letters')
+          .select('*, letter_templates(*)');
+        
+        // إذا لم يكن المستخدم مديراً، قم بعرض خطاباته فقط
+        if (!hasPermission('view:letters:all')) {
+          query = query.eq('user_id', dbUser.id);
+        } else if (branchFilter) {
+          // إذا كان المستخدم مديراً وتم تحديد فرع، اعرض خطابات ذلك الفرع
+          query = query.eq('branch_code', branchFilter);
+        }
+        
+        query = query.order(sortField, { ascending: sortDirection === 'asc' });
+        
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        console.error('Error fetching letters:', error);
+        toast({
+          title: 'خطأ',
+          description: 'حدث خطأ أثناء تحميل الخطابات',
+          type: 'error'
+        });
+        return [];
+      }
     },
     enabled: !!dbUser?.id
   });
@@ -81,7 +96,7 @@ export function LettersList({}: LetterListProps) {
       if (error) throw error;
       return data;
     },
-    enabled: dbUser?.role === 'admin'
+    enabled: hasPermission('view:letters:all')
   });
 
   // تحسين: استخدام useMemo لفلترة الخطابات
@@ -108,6 +123,20 @@ export function LettersList({}: LetterListProps) {
 
   async function handleDelete(id: string) {
     try {
+      // التحقق من صلاحيات المستخدم
+      const { data: letterData, error: fetchError } = await supabase
+        .from('letters')
+        .select('user_id')
+        .eq('id', id)
+        .single();
+        
+      if (fetchError) throw fetchError;
+      
+      if (!hasPermission('delete:letters') && 
+          !(hasPermission('delete:letters:own') && letterData.user_id === dbUser?.id)) {
+        throw new Error('ليس لديك صلاحية لحذف هذا الخطاب');
+      }
+
       const { error } = await supabase
         .from('letters')
         .delete()
@@ -135,6 +164,11 @@ export function LettersList({}: LetterListProps) {
 
   async function handleExport(letter: Letter) {
     try {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('export:letters')) {
+        throw new Error('ليس لديك صلاحية لتصدير الخطابات');
+      }
+
       await exportLetterToPDF(letter);
       toast({
         title: 'تم التصدير',
@@ -153,6 +187,11 @@ export function LettersList({}: LetterListProps) {
 
   async function handlePrint(letter: Letter) {
     try {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('export:letters')) {
+        throw new Error('ليس لديك صلاحية لطباعة الخطابات');
+      }
+
       await printLetter(letter);
     } catch (error) {
       console.error('Error:', error);
@@ -166,6 +205,16 @@ export function LettersList({}: LetterListProps) {
   
   // إظهار معاينة PDF بجودة عالية
   function handlePreviewHighQuality(letter: Letter) {
+    // التحقق من صلاحيات المستخدم
+    if (!hasPermission('view:letters')) {
+      toast({
+        title: 'خطأ',
+        description: 'ليس لديك صلاحية لعرض الخطابات',
+        type: 'error'
+      });
+      return;
+    }
+
     setPreviewLetter(letter);
   }
 
@@ -279,7 +328,7 @@ export function LettersList({}: LetterListProps) {
                   </div>
                 </div>
                 
-                {dbUser?.role === 'admin' && branches.length > 0 && (
+                {hasPermission('view:letters:all') && branches.length > 0 && (
                   <div className="mb-2">
                     <h4 className="text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">الفرع</h4>
                     <select
@@ -318,13 +367,15 @@ export function LettersList({}: LetterListProps) {
             </div>
           </div>
           
-          <button
-            onClick={() => navigate('new')}
-            className="bg-primary text-white px-4 py-2 rounded-lg flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            <span>إنشاء خطاب جديد</span>
-          </button>
+          {hasPermission('create:letters') && (
+            <button
+              onClick={() => navigate('new')}
+              className="bg-primary text-white px-4 py-2 rounded-lg flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>إنشاء خطاب جديد</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -344,13 +395,15 @@ export function LettersList({}: LetterListProps) {
               'لا توجد خطابات مطابقة لمعايير البحث الحالية' : 
               'لم تقم بإنشاء أي خطابات بعد'}
           </p>
-          <button
-            onClick={() => navigate('new')}
-            className="bg-primary text-white px-4 py-2 rounded-lg inline-flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            <span>إنشاء خطاب جديد</span>
-          </button>
+          {hasPermission('create:letters') && (
+            <button
+              onClick={() => navigate('new')}
+              className="bg-primary text-white px-4 py-2 rounded-lg inline-flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>إنشاء خطاب جديد</span>
+            </button>
+          )}
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg overflow-hidden border dark:border-gray-800">
@@ -464,53 +517,67 @@ export function LettersList({}: LetterListProps) {
 
                 <div className="px-4 py-4 flex items-center justify-center">
                   <div className="flex flex-wrap justify-center gap-0.5">
-                    <button 
-                      onClick={() => navigate(`view/${letter.id}`)}
-                      className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                      title="عرض الخطاب"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </button>
+                    {hasPermission('view:letters') && (
+                      <button 
+                        onClick={() => navigate(`view/${letter.id}`)}
+                        className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                        title="عرض الخطاب"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    )}
                     
-                    <button 
-                      onClick={() => navigate(`edit/${letter.id}`)}
-                      className="p-1.5 text-gray-500 hover:text-primary hover:bg-primary/5 dark:hover:bg-primary/10 rounded-lg transition-colors"
-                      title="تعديل الخطاب"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
+                    {(hasPermission('edit:letters') || 
+                      (hasPermission('edit:letters:own') && letter.user_id === dbUser?.id)) && (
+                      <button 
+                        onClick={() => navigate(`edit/${letter.id}`)}
+                        className="p-1.5 text-gray-500 hover:text-primary hover:bg-primary/5 dark:hover:bg-primary/10 rounded-lg transition-colors"
+                        title="تعديل الخطاب"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                    )}
                     
-                    <button 
-                      onClick={() => handlePrint(letter)}
-                      className="p-1.5 text-gray-500 hover:text-primary hover:bg-primary/5 dark:hover:bg-primary/10 rounded-lg transition-colors"
-                      title="طباعة الخطاب"
-                    >
-                      <Printer className="h-4 w-4" />
-                    </button>
+                    {hasPermission('export:letters') && (
+                      <button 
+                        onClick={() => handlePrint(letter)}
+                        className="p-1.5 text-gray-500 hover:text-primary hover:bg-primary/5 dark:hover:bg-primary/10 rounded-lg transition-colors"
+                        title="طباعة الخطاب"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </button>
+                    )}
                     
-                    <button 
-                      onClick={() => handleExport(letter)}
-                      className="p-1.5 text-gray-500 hover:text-primary hover:bg-primary/5 dark:hover:bg-primary/10 rounded-lg transition-colors"
-                      title="تصدير PDF"
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
+                    {hasPermission('export:letters') && (
+                      <button 
+                        onClick={() => handleExport(letter)}
+                        className="p-1.5 text-gray-500 hover:text-primary hover:bg-primary/5 dark:hover:bg-primary/10 rounded-lg transition-colors"
+                        title="تصدير PDF"
+                      >
+                        <Download className="h-4 w-4" />
+                      </button>
+                    )}
                     
-                    <button
-                      onClick={() => handlePreviewHighQuality(letter)}
-                      className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                      title="تصدير PDF بجودة عالية"
-                    >
-                      <FileText className="h-4 w-4" />
-                    </button>
+                    {hasPermission('export:letters') && (
+                      <button
+                        onClick={() => handlePreviewHighQuality(letter)}
+                        className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                        title="تصدير PDF بجودة عالية"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </button>
+                    )}
                     
-                    <button 
-                      onClick={() => setShowDeleteConfirm(letter.id)}
-                      className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                      title="حذف الخطاب"
-                    >
-                      <Trash className="h-4 w-4" />
-                    </button>
+                    {(hasPermission('delete:letters') || 
+                      (hasPermission('delete:letters:own') && letter.user_id === dbUser?.id)) && (
+                      <button 
+                        onClick={() => setShowDeleteConfirm(letter.id)}
+                        className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="حذف الخطاب"
+                      >
+                        <Trash className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, Save, Eye, Settings, Building } from 'lucide-react';
 import { useLetters } from '../../hooks/useLetters';
+import { useAuth } from '../../lib/auth';
 import { RichTextEditor } from '../../components/letters/RichTextEditor';
 import { supabase } from '../../lib/supabase';
 import moment from 'moment-hijri';
 import type { Letter, Template } from '../../types/database';
 import { exportToPDF } from '../../lib/pdf-export'; // استخدام نظام التصدير الجديد
+import { useToast } from '../../hooks/useToast';
 
 const MONTHS_AR = [
   'محرم', 'صفر', 'ربيع الأول', 'ربيع الثاني',
@@ -17,6 +19,8 @@ const MONTHS_AR = [
 export function EditLetter() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const { updateLetter } = useLetters();
   const [letter, setLetter] = useState<Letter | null>(null);
@@ -34,6 +38,17 @@ export function EditLetter() {
 
   async function loadLetter() {
     try {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('view:letters')) {
+        toast({
+          title: 'خطأ',
+          description: 'ليس لديك صلاحية لعرض الخطابات',
+          type: 'error'
+        });
+        navigate('/admin');
+        return;
+      }
+
       const { data: letter, error } = await supabase
         .from('letters')
         .select('*, letter_templates(*)')
@@ -42,12 +57,28 @@ export function EditLetter() {
 
       if (error) throw error;
 
+      // التحقق من صلاحية تعديل الخطاب
+      if (!hasPermission('edit:letters') && 
+          !(hasPermission('edit:letters:own') && letter.user_id === (await supabase.auth.getUser()).data.user?.id)) {
+        toast({
+          title: 'خطأ',
+          description: 'ليس لديك صلاحية لتعديل هذا الخطاب',
+          type: 'error'
+        });
+        navigate('/admin/letters');
+        return;
+      }
+
       setLetter(letter);
       setTemplate(letter.letter_templates);
       setContent(letter.content);
     } catch (error) {
       console.error('Error:', error);
-      alert('حدث خطأ أثناء تحميل الخطاب');
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء تحميل الخطاب',
+        type: 'error'
+      });
       navigate('/admin/letters');
     }
   }
@@ -55,6 +86,17 @@ export function EditLetter() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!letter) return;
+
+    // التحقق من صلاحية تعديل الخطاب
+    if (!hasPermission('edit:letters') && 
+        !(hasPermission('edit:letters:own') && letter.user_id === (await supabase.auth.getUser()).data.user?.id)) {
+      toast({
+        title: 'خطأ',
+        description: 'ليس لديك صلاحية لتعديل هذا الخطاب',
+        type: 'error'
+      });
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -68,7 +110,11 @@ export function EditLetter() {
       navigate('/admin/letters');
     } catch (error) {
       console.error('Error:', error);
-      alert('حدث خطأ أثناء حفظ الخطاب');
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء حفظ الخطاب',
+        type: 'error'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -91,6 +137,16 @@ export function EditLetter() {
   async function handleExport() {
     if (!letter) return;
     
+    // التحقق من صلاحية تصدير الخطابات
+    if (!hasPermission('export:letters')) {
+      toast({
+        title: 'خطأ',
+        description: 'ليس لديك صلاحية لتصدير الخطابات',
+        type: 'error'
+      });
+      return;
+    }
+    
     try {
       await exportToPDF(letter, {
         scale: 3.0,
@@ -99,7 +155,11 @@ export function EditLetter() {
       });
     } catch (error) {
       console.error('Error exporting:', error);
-      alert('حدث خطأ أثناء تصدير الخطاب');
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء تصدير الخطاب',
+        type: 'error'
+      });
     }
   }
 

@@ -33,7 +33,8 @@ export function Sidebar() {
         name: 'الخطابات', 
         href: '/admin/letters', 
         icon: FileText, 
-        permissions: ['view:letters']
+        permissions: ['view:letters'],
+        exact: false
       },
       {
         name: 'الموافقات',
@@ -123,8 +124,10 @@ export function Sidebar() {
       <nav className="h-full pt-4 flex flex-col">
         <div className="space-y-1 px-2 flex-1 overflow-y-auto">
           {navigation.map((item) => {
-            const isActive = location.pathname === item.href || 
-                          (item.href !== '/admin' && location.pathname.startsWith(item.href));
+            const isActive = item.exact 
+              ? location.pathname === item.href 
+              : location.pathname === item.href || 
+                (item.href !== '/admin' && location.pathname.startsWith(item.href));
                           
             // Skip items that require permissions the user doesn't have
             if (item.permissions && item.permissions.length > 0 && !hasPermission(item.permissions[0]) && !item.permissions.some(p => hasPermission(p))) {

@@ -1,12 +1,13 @@
 import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, ShieldAlert } from 'lucide-react';
 
 interface PermissionRouteProps {
   permissions: string[];
   children: ReactNode;
   redirectTo?: string;
+  fallbackComponent?: ReactNode;
 }
 
 /**
@@ -15,8 +16,9 @@ interface PermissionRouteProps {
  * @param permissions - Lista de permisos requeridos (el usuario debe tener al menos uno)
  * @param children - Componentes a renderizar si el usuario tiene permiso
  * @param redirectTo - Ruta de redirección en caso de falta de permisos (por defecto: /admin)
+ * @param fallbackComponent - Componente a mostrar en caso de falta de permisos (opcional)
  */
-export function PermissionRoute({ permissions, children, redirectTo = '/admin' }: PermissionRouteProps) {
+export function PermissionRoute({ permissions, children, redirectTo = '/admin', fallbackComponent }: PermissionRouteProps) {
   const { hasAnyPermission, loading, user } = useAuth();
   
   if (loading) {
@@ -34,16 +36,24 @@ export function PermissionRoute({ permissions, children, redirectTo = '/admin' }
   
   // Verificar si el usuario tiene al menos uno de los permisos requeridos
   if (!hasAnyPermission(permissions)) {
+    // Si se proporciona un componente personalizado, mostrarlo
+    if (fallbackComponent) {
+      return <>{fallbackComponent}</>;
+    }
+    
     // Mostrar mensaje de error con opción de redirigir
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
         <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 mt-8 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full mb-6">
-            <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
+            <ShieldAlert className="h-8 w-8 text-red-600 dark:text-red-400" />
           </div>
           <h1 className="text-2xl font-bold mb-4 text-red-700 dark:text-red-300">غير مصرح بالوصول</h1>
           <p className="text-lg mb-6 text-gray-700 dark:text-gray-300">
-            ليس لديك الصلاحيات اللازمة للوصول إلى هذه الصفحة.
+            ليس لديك الصلاحيات اللازمة للوصول إلى هذه الصفحة:
+            <span className="block mt-2 text-sm font-mono bg-gray-100 dark:bg-gray-700 p-2 rounded-lg inline-block">
+              {permissions.join(' أو ')}
+            </span>
           </p>
           <div className="flex justify-center space-x-4">
             <button 

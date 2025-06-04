@@ -10,7 +10,7 @@ interface ToastContextProps {
   }) => void
 }
 
-export const ToastContext = createContext<ToastContextProps>({
+const ToastContext = createContext<ToastContextProps>({
   addToast: () => {},
 })
 

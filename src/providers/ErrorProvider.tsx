@@ -30,7 +30,7 @@ export function ErrorProvider({ children }: { children: ReactNode }) {
 /**
  * هوك مخصص لاستخدام سياق الأخطاء
  */
-export function useError() {
+function useError() {
   const context = useContext(ErrorContext);
   if (context === undefined) {
     throw new Error('useError must be used within an ErrorProvider');

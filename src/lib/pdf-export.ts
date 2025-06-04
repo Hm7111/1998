@@ -536,7 +536,7 @@ function optimizeClonedDocument(clonedDoc: Document): Promise<void> {
  * تصدير عنصر DOM محدد كملف PDF
  * مفيدة للتصدير المباشر من واجهة المستخدم
  */
-export async function exportElementToPDF(element: HTMLElement, options: Partial<ExportPDFOptions> = {}): Promise<void> {
+async function exportElementToPDF(element: HTMLElement, options: Partial<ExportPDFOptions> = {}): Promise<void> {
   const filename = options.filename || 'document.pdf';
   const scale = options.scale || 3.0; // تحسين: تقليل الدقة
   const quality = options.quality || 0.95; // تحسين: تقليل الجودة

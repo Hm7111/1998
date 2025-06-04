@@ -57,7 +57,7 @@ export interface Template {
   }
 }
 
-export interface TemplateCategory {
+interface TemplateCategory {
   id: string
   name: string
   description: string | null
@@ -79,7 +79,7 @@ export interface TemplateZone {
   created_at: string
 }
 
-export interface TemplateVariable {
+interface TemplateVariable {
   id: string
   name: string
   description: string | null
@@ -211,7 +211,7 @@ export interface Letter {
 }
 
 // New interface for audit logs
-export interface AuditLog {
+interface AuditLog {
   id: string
   action_type: 'create' | 'update' | 'delete' | 'view'
   target_type: 'letter' | 'template' | 'user' | 'system'

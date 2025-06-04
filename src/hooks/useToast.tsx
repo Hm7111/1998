@@ -2,7 +2,7 @@ import { useState, useCallback, ReactNode, useEffect } from 'react'
 import { Toast, ToastContainer } from '../components/ui/Toast'
 import { createRoot } from 'react-dom/client'
 
-export type ToastType = 'success' | 'error' | 'info' | 'warning'
+type ToastType = 'success' | 'error' | 'info' | 'warning'
 
 interface ToastOptions {
   title: string

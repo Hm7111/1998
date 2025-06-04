@@ -1,7 +1,7 @@
 import { LettersList as LettersListComponent } from '../../../components/letters/LettersList';
 import { RestrictedComponent } from '../../../components/ui/RestrictedComponent';
 
-export function LettersList() {
+function LettersList() {
   return (
     <RestrictedComponent 
       permissions={['view:letters']}

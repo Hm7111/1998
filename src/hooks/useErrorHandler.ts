@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useToast } from './useToast';
 
-export type ErrorSeverity = 'error' | 'warning' | 'info';
+type ErrorSeverity = 'error' | 'warning' | 'info';
 
 export interface ErrorDetails {
   message: string;

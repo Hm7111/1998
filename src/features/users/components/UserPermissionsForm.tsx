@@ -13,7 +13,7 @@ interface UserPermissionsFormProps {
 /**
  * نموذج إدارة صلاحيات المستخدم
  */
-export function UserPermissionsForm({ user, permissions, onSubmit, isLoading }: UserPermissionsFormProps) {
+function UserPermissionsForm({ user, permissions, onSubmit, isLoading }: UserPermissionsFormProps) {
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>(user.permissions || []);
   const [defaultPermissions, setDefaultPermissions] = useState<string[]>([]);
   

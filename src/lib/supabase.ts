@@ -60,4 +60,4 @@ function createSupabaseClient() {
 }
 
 export const supabase = createSupabaseClient()
-export { checkConnection }
+

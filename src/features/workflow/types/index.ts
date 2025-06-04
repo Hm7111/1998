@@ -37,4 +37,4 @@ export interface PendingApproval {
   requested_at: string;
 }
 
-export type { WorkflowState, ApprovalRequest, ApprovalLog, Letter, User, Signature };
+export type { WorkflowState,   Letter,   };

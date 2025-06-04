@@ -12,7 +12,7 @@ export interface LetterContent {
   [key: string]: any;
 }
 
-export interface LetterDraft {
+interface LetterDraft {
   id?: string;
   user_id: string;
   template_id: string;
@@ -49,13 +49,8 @@ export interface EditorState {
 }
 
 // أنواع للتصدير
-export interface ExportOptions {
+interface ExportOptions {
   withTemplate: boolean;
   action: 'print' | 'export';
 }
-
-export type { 
-  Letter,
-  Template,
-  TemplateZone
-} from '../../../types/database';
+;

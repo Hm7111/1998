@@ -26,9 +26,7 @@
     "@tanstack/react-query": "^5.28.5",
     "@tinymce/tinymce-react": "^4.3.2",
     "canvas-to-blob": "^1.0.0",
-    "cloudinary-react": "^1.8.1",
     "clsx": "^2.1.0",
-    "docx": "^8.5.0",
     "framer-motion": "^11.0.5",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.0",
@@ -40,12 +38,9 @@
     "qrcode.react": "^3.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-intersection-observer": "^9.8.1",
     "react-router-dom": "^6.22.3",
     "tailwind-merge": "^2.2.1",
-    "tinymce": "^6.8.5",
-    "zustand": "^4.5.7",
-    "terser": "^5.29.2"
+    "zustand": "^4.5.7"
   },
   "devDependencies": {
     "@eslint/js": "^8.56.0",

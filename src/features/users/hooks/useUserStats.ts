@@ -6,7 +6,7 @@ import { UserStats } from '../types';
 /**
  * هوك لجلب إحصائيات المستخدمين
  */
-export function useUserStats() {
+function useUserStats() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();

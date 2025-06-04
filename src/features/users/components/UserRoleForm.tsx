@@ -13,7 +13,7 @@ interface UserRoleFormProps {
 /**
  * نموذج إنشاء وتعديل دور المستخدم
  */
-export function UserRoleForm({ role, permissions, onSubmit, isLoading }: UserRoleFormProps) {
+function UserRoleForm({ role, permissions, onSubmit, isLoading }: UserRoleFormProps) {
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>(role?.permissions || []);
   
   // إعداد التحقق من صحة النموذج

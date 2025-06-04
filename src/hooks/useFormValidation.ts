@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-export type ValidationRules<T> = {
+type ValidationRules<T> = {
   [K in keyof T]?: {
     required?: boolean | string;
     minLength?: [number, string];
@@ -11,7 +11,7 @@ export type ValidationRules<T> = {
   };
 };
 
-export type ValidationErrors<T> = {
+type ValidationErrors<T> = {
   [K in keyof T]?: string;
 };
 

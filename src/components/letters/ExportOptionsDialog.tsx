@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { X, FileText, FileOutput, Printer, Download, Check } from 'lucide-react'
 import type { Letter } from '../../types/database'
 
-export interface ExportOptions {
+interface ExportOptions {
   withTemplate: boolean;
   action: 'print' | 'export';
 }

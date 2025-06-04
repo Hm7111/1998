@@ -102,7 +102,7 @@ export function EmptyState({
 /**
  * مكون لعرض حالة نتائج بحث فارغة
  */
-export function EmptySearchResults({
+function EmptySearchResults({
   searchTerm,
   onClearSearch,
   className = ''

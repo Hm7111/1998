@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom'
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning'
 
-export interface ToastProps {
+interface ToastProps {
   id: string
   title: string
   description?: string

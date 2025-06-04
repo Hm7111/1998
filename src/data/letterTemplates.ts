@@ -1023,7 +1023,7 @@ ${'{الجهة}'}
   }
 ];
 
-export const getTemplateById = (templateId: string): { category: TemplateCategory, template: any } | null => {
+const getTemplateById = (templateId: string): { category: TemplateCategory, template: any } | null => {
   for (const category of letterTemplates) {
     const template = category.templates.find(t => t.id === templateId);
     if (template) {

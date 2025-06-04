@@ -6,7 +6,7 @@ import type { Letter } from '../types/database';
 /**
  * واجهة خيارات التصدير
  */
-export interface ExportOptions {
+interface ExportOptions {
   filename?: string;
   scale?: number;
   quality?: number;

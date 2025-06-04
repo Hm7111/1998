@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 /**
  * هوك لإدارة صلاحيات المستخدمين
  */
-export function useUserPermissions() {
+function useUserPermissions() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();

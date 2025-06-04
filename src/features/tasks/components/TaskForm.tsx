@@ -13,10 +13,10 @@ interface TaskFormProps {
 }
 
 /**
- * نموذج إنشاء وتحرير المهام
+ * Formulario de creación y edición de tareas
  */
 export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false }: TaskFormProps) {
-  const { isAdmin, dbUser } = useAuth();
+  const { isAdmin, dbUser, hasPermission } = useAuth();
   
   const [formData, setFormData] = useState<TaskFormData>({
     title: '',
@@ -31,7 +31,7 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
   
   const [errors, setErrors] = useState<Record<string, string>>({});
   
-  // تحميل البيانات الأولية في حالة التعديل
+  // Cargar datos iniciales en caso de edición
   useEffect(() => {
     if (initialData) {
       setFormData({
@@ -45,7 +45,7 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
         branch_id: initialData.branch_id || null
       });
     } else if (dbUser?.branch_id) {
-      // تعيين الفرع الافتراضي للمستخدم الحالي
+      // Establecer sucursal predeterminada del usuario actual
       setFormData(prev => ({
         ...prev,
         branch_id: dbUser.branch_id || null
@@ -53,12 +53,12 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
     }
   }, [initialData, dbUser]);
 
-  // تحديث حقل في النموذج
+  // Actualizar campo en el formulario
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // مسح الخطأ عند تعديل الحقل
+    // Limpiar error al editar el campo
     if (errors[name]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -68,7 +68,7 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
     }
   };
 
-  // التحقق من صحة النموذج
+  // Validar formulario
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
     
@@ -76,15 +76,19 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
       newErrors.title = 'عنوان المهمة مطلوب';
     }
     
-    if (!formData.assigned_to) {
+    if (!formData.assigned_to && !isAdmin && !hasPermission('assign:tasks')) {
       newErrors.assigned_to = 'يجب تعيين المهمة لموظف';
+    }
+    
+    if (!formData.branch_id) {
+      newErrors.branch_id = 'يجب تحديد الفرع';
     }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // تقديم النموذج
+  // Enviar formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -95,15 +99,15 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
     await onSubmit(formData);
   };
 
-  // تعيين المهمة للمستخدم
+  // Asignar tarea a un usuario
   const handleAssignToUser = (userId: string | null, userData?: any) => {
     setFormData(prev => {
-      // Create the updates object
+      // Crear objeto de actualizaciones
       const updates: Partial<TaskFormData> = {
         assigned_to: userId
       };
       
-      // If we have user data with branch info, automatically update the branch ID
+      // Si tenemos datos de usuario con información de sucursal, actualizar automáticamente la sucursal
       if (userData?.branch?.id && !isEditMode) {
         updates.branch_id = userData.branch.id;
       }
@@ -111,7 +115,7 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
       return { ...prev, ...updates };
     });
     
-    // مسح الخطأ عند تعيين المستخدم
+    // Limpiar error al asignar usuario
     if (errors.assigned_to) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -121,15 +125,27 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
     }
   };
   
-  // تعيين فرع للمهمة
+  // Asignar sucursal a la tarea
   const handleSelectBranch = (branchId: string | null) => {
     setFormData(prev => ({ ...prev, branch_id: branchId }));
+    
+    // Limpiar error al seleccionar sucursal
+    if (errors.branch_id) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.branch_id;
+        return newErrors;
+      });
+    }
   };
 
-  // تعيين تاريخ استحقاق للمهمة
+  // Asignar fecha de vencimiento a la tarea
   const handleDueDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, due_date: e.target.value || null }));
   };
+
+  // Verificar si el usuario tiene permiso para asignar tareas
+  const canAssignTasks = isAdmin || hasPermission('assign:tasks');
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -170,7 +186,7 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">
-              تعيين إلى <span className="text-red-500">*</span>
+              تعيين إلى {canAssignTasks ? '' : <span className="text-red-500">*</span>}
             </label>
             <UserSelector
               value={formData.assigned_to || ''}
@@ -182,12 +198,14 @@ export function TaskForm({ initialData, onSubmit, isLoading, isEditMode = false 
           <div>
             <label htmlFor="branch_id" className="block text-sm font-medium mb-1">
               الفرع {formData.assigned_to && "(تم التحديد تلقائيًا من الموظف)"}
+              <span className="text-red-500">*</span>
             </label>
             <BranchSelector
               value={formData.branch_id}
               onChange={handleSelectBranch}
               showAll
-              disabled={formData.assigned_to !== null && !isEditMode}
+              disabled={formData.assigned_to !== null && !isEditMode && !canAssignTasks}
+              error={errors.branch_id}
             />
           </div>
         </div>

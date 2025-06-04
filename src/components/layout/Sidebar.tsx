@@ -14,53 +14,68 @@ export function Sidebar() {
         name: 'الرئيسية', 
         href: '/admin', 
         icon: Home, 
-        permission: 'view:dashboard'
+        permissions: ['view:dashboard']
       },
       { 
         name: 'الخطابات', 
         href: '/admin/letters', 
         icon: FileText, 
-        permission: 'view:letters'
+        permissions: ['view:letters']
       },
       {
         name: 'الموافقات',
         href: '/admin/approvals',
         icon: ClipboardCheck,
-        permission: 'view:letters'
+        permissions: ['view:approvals', 'view:approvals:own']
       },
       {
         name: 'المهام',
         href: '/admin/tasks',
         icon: ListTodo,
-        permission: 'view:tasks'
+        permissions: ['view:tasks', 'view:tasks:assigned', 'view:tasks:own']
       }
     ];
     
-    if (isAdmin) {
+    if (isAdmin || hasPermission('view:users')) {
       items.push(
         { 
           name: 'المستخدمين', 
           href: '/admin/users', 
           icon: Users, 
-          permission: 'view:users'
-        },
+          permissions: ['view:users']
+        }
+      );
+    }
+    
+    if (isAdmin || hasPermission('view:branches')) {
+      items.push(
         { 
           name: 'الفروع', 
           href: '/admin/branches', 
           icon: Building, 
-          permission: 'view:branches'
-        },
+          permissions: ['view:branches']
+        }
+      );
+    }
+    
+    if (isAdmin || hasPermission('view:permissions')) {
+      items.push(
         { 
           name: 'الصلاحيات', 
           href: '/admin/permissions', 
           icon: Shield, 
-          permission: 'view:permissions'
-        },
+          permissions: ['view:permissions']
+        }
+      );
+    }
+    
+    if (isAdmin || hasPermission('view:audit_logs')) {
+      items.push(
         { 
           name: 'سجلات الأحداث', 
           href: '/admin/audit-logs', 
           icon: History, 
-          permission: 'view:audit_logs'
+          permissions: ['view:audit_logs']
         }
       );
     }
@@ -69,7 +84,7 @@ export function Sidebar() {
       name: 'الإعدادات', 
       href: '/admin/settings', 
       icon: Settings, 
-      permission: 'view:settings'
+      permissions: ['view:settings']
     });
     
     return items;
@@ -85,8 +100,7 @@ export function Sidebar() {
                           (item.href !== '/admin' && location.pathname.startsWith(item.href));
                           
           // Skip items that require permissions the user doesn't have
-          // Always show items for admin or if no specific permission is required
-          if (item.permission && !isAdmin && !hasPermission(item.permission)) {
+          if (item.permissions && item.permissions.length > 0 && !hasPermission(item.permissions[0]) && !item.permissions.some(p => hasPermission(p))) {
             return null;
           }
           

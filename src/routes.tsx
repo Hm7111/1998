@@ -10,12 +10,13 @@ import { Settings } from './pages/admin/Settings'
 import { VerifyLetter } from './pages/VerifyLetter'
 import { AuditLogs } from './pages/admin/AuditLogs'
 import { PermissionsManager } from './pages/admin/permissions'
-// استيراد صفحات الخطابات من المسار الصحيح
+// Importar páginas de cartas desde la ruta correcta
 import { LetterEditor, ViewLetter, EditLetter } from './features/letters/pages'
 import { AuthProvider } from './lib/auth'
-import { Approvals } from './pages/admin/Approvals' // إضافة صفحة الموافقات
-// استيراد صفحات نظام المهام
+import { Approvals } from './pages/admin/Approvals'
+// Importar páginas del sistema de tareas
 import { TasksList, TaskDetails, NewTask } from './features/tasks/pages'
+import { PermissionRoute } from './components/auth/PermissionRoute'
 
 export function AppRoutes() {
   return (
@@ -25,20 +26,77 @@ export function AppRoutes() {
         
         <Route path="/admin" element={<AuthGuard><AdminLayout /></AuthGuard>}>
           <Route index element={<Dashboard />} />
-          <Route path="letters" element={<Letters />} />
-          <Route path="letters/new" element={<LetterEditor />} />
-          <Route path="letters/edit/:id" element={<EditLetter />} />
-          <Route path="letters/view/:id" element={<ViewLetter />} />
-          <Route path="users" element={<Users />} />
-          <Route path="branches" element={<Branches />} />
-          <Route path="permissions" element={<PermissionsManager />} />
+          
+          {/* Rutas protegidas por permisos */}
+          <Route path="letters" element={
+            <PermissionRoute permissions={['view:letters']}>
+              <Letters />
+            </PermissionRoute>
+          } />
+          <Route path="letters/new" element={
+            <PermissionRoute permissions={['create:letters']}>
+              <LetterEditor />
+            </PermissionRoute>
+          } />
+          <Route path="letters/edit/:id" element={
+            <PermissionRoute permissions={['edit:letters', 'edit:letters:own']}>
+              <EditLetter />
+            </PermissionRoute>
+          } />
+          <Route path="letters/view/:id" element={
+            <PermissionRoute permissions={['view:letters']}>
+              <ViewLetter />
+            </PermissionRoute>
+          } />
+          
+          <Route path="users" element={
+            <PermissionRoute permissions={['view:users']}>
+              <Users />
+            </PermissionRoute>
+          } />
+          
+          <Route path="branches" element={
+            <PermissionRoute permissions={['view:branches']}>
+              <Branches />
+            </PermissionRoute>
+          } />
+          
+          <Route path="permissions" element={
+            <PermissionRoute permissions={['view:permissions']}>
+              <PermissionsManager />
+            </PermissionRoute>
+          } />
+          
           <Route path="settings" element={<Settings />} />
-          <Route path="audit-logs" element={<AuditLogs />} />
-          <Route path="approvals" element={<Approvals />} />
-          {/* إضافة مسارات نظام المهام */}
-          <Route path="tasks" element={<TasksList />} />
-          <Route path="tasks/new" element={<NewTask />} />
-          <Route path="tasks/:id" element={<TaskDetails />} />
+          
+          <Route path="audit-logs" element={
+            <PermissionRoute permissions={['view:audit_logs']}>
+              <AuditLogs />
+            </PermissionRoute>
+          } />
+          
+          <Route path="approvals" element={
+            <PermissionRoute permissions={['view:approvals', 'view:approvals:own']}>
+              <Approvals />
+            </PermissionRoute>
+          } />
+          
+          {/* Rutas del sistema de tareas */}
+          <Route path="tasks" element={
+            <PermissionRoute permissions={['view:tasks', 'view:tasks:assigned', 'view:tasks:own']}>
+              <TasksList />
+            </PermissionRoute>
+          } />
+          <Route path="tasks/new" element={
+            <PermissionRoute permissions={['create:tasks', 'create:tasks:own']}>
+              <NewTask />
+            </PermissionRoute>
+          } />
+          <Route path="tasks/:id" element={
+            <PermissionRoute permissions={['view:tasks', 'view:tasks:assigned', 'view:tasks:own']}>
+              <TaskDetails />
+            </PermissionRoute>
+          } />
         </Route>
         
         <Route path="/" element={<Navigate to="/login" replace />} />

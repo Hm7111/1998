@@ -8,28 +8,45 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 // Default permissions for each role
 export const DEFAULT_PERMISSIONS = {
   admin: [
+    // Sistema de cartas
     'view:letters',
     'create:letters',
     'edit:letters',
     'delete:letters',
+    'export:letters',
+    
+    // Sistema de plantillas
     'view:templates',
     'create:templates',
     'edit:templates',
     'delete:templates',
+    
+    // Sistema de usuarios
     'view:users',
     'create:users',
     'edit:users',
     'delete:users',
+    
+    // Sistema de sucursales
     'view:branches',
     'create:branches',
     'edit:branches',
     'delete:branches',
+    
+    // Configuración del sistema
     'view:settings',
     'edit:settings',
+    
+    // Registros de auditoría
     'view:audit_logs',
+    
+    // Sistema de aprobaciones
     'view:approvals',
     'approve:letters',
     'reject:letters',
+    'request:approval',
+    
+    // Sistema de tareas
     'view:tasks',
     'create:tasks',
     'edit:tasks',
@@ -39,12 +56,21 @@ export const DEFAULT_PERMISSIONS = {
     'view:tasks:all'
   ],
   user: [
+    // Sistema de cartas
     'view:letters',
     'create:letters',
     'edit:letters:own',
     'delete:letters:own',
+    'export:letters',
+    
+    // Sistema de plantillas
     'view:templates',
+    
+    // Sistema de aprobaciones
     'request:approval',
+    'view:approvals:own',
+    
+    // Sistema de tareas
     'view:tasks',
     'create:tasks:own',
     'edit:tasks:own',
@@ -60,6 +86,7 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   hasPermission: (permission: string) => boolean;
+  hasAnyPermission: (permissions: string[]) => boolean;
   logout: () => Promise<void>;
   reloadPermissions: () => Promise<void>;
 }
@@ -71,6 +98,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isAdmin: false,
   hasPermission: () => false,
+  hasAnyPermission: () => false,
   logout: async () => {},
   reloadPermissions: async () => {},
 });
@@ -102,14 +130,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
        console.log('Loaded user data:', data);
        
-        // مهم: التحقق من حالة تنشيط المستخدم
+        // Importante: verificar si el usuario está activo
         if (data && !data.is_active && data.role !== 'admin') {
-          // إذا كان المستخدم غير نشط، قم بتسجيل الخروج وإعادة توجيهه إلى صفحة تسجيل الدخول
+          // Si el usuario no está activo, cerrar sesión y redirigir a la página de inicio de sesión
           await supabase.auth.signOut()
           setUser(null)
           navigate('/login', { 
             state: { 
-              message: 'تم تعطيل حسابك. يرجى التواصل مع المسؤول.' 
+              message: 'Tu cuenta ha sido desactivada. Por favor, contacta al administrador.' 
             } 
           })
           return null
@@ -122,8 +150,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     },
     enabled: !!user?.id,
-   staleTime: 1000 * 60 * 1, // 1 minute - reduce stale time to refresh more frequently
-    cacheTime: 1000 * 60 * 30, // 30 minutes
+    staleTime: 1000 * 60 * 1, // 1 minuto - reducir tiempo de refresco para actualizar más frecuentemente
+    cacheTime: 1000 * 60 * 30, // 30 minutos
     retry: 3
   })
 
@@ -168,25 +196,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Admins have all permissions
     if (dbUser.role === 'admin') return true;
     
-    // For regular users, check default permissions based on role
-    const userPermissions = DEFAULT_PERMISSIONS[dbUser.role as keyof typeof DEFAULT_PERMISSIONS] || [];
+    // For regular users, check default permissions based on role and any custom permissions
+    const defaultUserPermissions = DEFAULT_PERMISSIONS[dbUser.role as keyof typeof DEFAULT_PERMISSIONS] || [];
     
-    // Add any custom permissions assigned to the user
+    // Get custom permission codes from the database
+    const userCustomPermissions: string[] = [];
+    
+    // If user has custom permissions assigned
     if (dbUser.permissions && Array.isArray(dbUser.permissions)) {
       // Get permissions by ID from database
-      const customPermissionIds = dbUser.permissions;
-      // In a real implementation, we would fetch the actual permission codes
-      // For now we'll just add the IDs (this would need to be improved)
+      for (const permId of dbUser.permissions) {
+        // Here we would ideally fetch the actual permission code by ID
+        // For now, we'll just use the ID as is (this would need improvement)
+        userCustomPermissions.push(permId);
+      }
     }
+    
+    // Combine default and custom permissions
+    const allUserPermissions = [...defaultUserPermissions, ...userCustomPermissions];
     
     // Handle ownership-specific permissions (e.g., "edit:letters:own")
     if (permission.endsWith(':own')) {
       const basePermission = permission.replace(':own', '');
-      return userPermissions.includes(basePermission) || userPermissions.includes(permission);
+      return allUserPermissions.includes(basePermission) || allUserPermissions.includes(permission);
     }
     
-    return userPermissions.includes(permission);
+    return allUserPermissions.includes(permission);
   }, [dbUser]);
+
+  // Check if user has any of the specified permissions
+  const hasAnyPermission = useCallback((permissions: string[]): boolean => {
+    if (!permissions.length) return true; // If no permissions required, return true
+    return permissions.some(permission => hasPermission(permission));
+  }, [hasPermission]);
 
   // Logout function
   const logout = useCallback(async () => {
@@ -194,7 +236,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await supabase.auth.signOut();
       navigate('/login', {
         state: {
-          message: 'تم تسجيل الخروج بنجاح'
+          message: 'Se ha cerrado la sesión exitosamente'
         }
       });
     } catch (error) {
@@ -209,6 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading: loading || isDbUserLoading, 
       isAdmin: dbUser?.role === 'admin',
       hasPermission,
+      hasAnyPermission,
       logout,
       reloadPermissions
     }}>

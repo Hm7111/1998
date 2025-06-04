@@ -6,14 +6,14 @@ import { useToast } from '../../../hooks/useToast';
 import { Task, TaskFilters, TaskSummary } from '../types';
 
 /**
- * هوك للحصول على قائمة المهام وتصفيتها
+ * Hook para obtener la lista de tareas y filtrarla
  */
 export function useTaskList() {
   const { toast } = useToast();
-  const { dbUser, isAdmin } = useAuth();
+  const { dbUser, isAdmin, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   
-  // حالة الفلاتر
+  // Estado de filtros
   const [filters, setFilters] = useState<TaskFilters>({
     status: 'all',
     priority: 'all',
@@ -21,10 +21,10 @@ export function useTaskList() {
     branch_id: null,
     search: '',
     timeframe: 'all',
-    taskType: 'all' // إضافة فلتر لنوع المهمة
+    taskType: 'all' // Agregar filtro para tipo de tarea
   });
 
-  // استعلام للحصول على المهام
+  // Consulta para obtener las tareas
   const {
     data: tasks = [],
     isLoading,
@@ -43,7 +43,7 @@ export function useTaskList() {
             branch:branch_id(id, name, code)
           `);
 
-        // تطبيق الفلاتر
+        // Aplicar filtros
         if (filters.status && filters.status !== 'all') {
           query = query.eq('status', filters.status);
         }
@@ -54,66 +54,82 @@ export function useTaskList() {
         
         if (filters.assigned_to) {
           query = query.eq('assigned_to', filters.assigned_to);
-        } else if (!isAdmin && dbUser?.id) {
-          // تطبيق فلتر نوع المهمة للمستخدمين العاديين
-          if (filters.taskType === 'assigned_to_me') {
-            query = query.eq('assigned_to', dbUser.id);
-          } else if (filters.taskType === 'created_by_me') {
-            query = query.eq('created_by', dbUser.id);
-          } else {
-            // المستخدمون العاديون يرون المهام المخصصة لهم أو المهام التي أنشأوها
-            // تحسين: إضافة الشرط لإظهار المهام التي أنشأها المستخدم بغض النظر عن الفرع
-            query = query.or(`assigned_to.eq.${dbUser.id},created_by.eq.${dbUser.id}`);
+        } else {
+          // Verificar permisos para filtrar tareas
+          const canViewAllTasks = isAdmin || hasPermission('view:tasks:all');
+          const canViewCreatedTasks = hasPermission('view:tasks:own');
+          const canViewAssignedTasks = hasPermission('view:tasks:assigned');
+          
+          if (!canViewAllTasks) {
+            if (filters.taskType === 'assigned_to_me' && canViewAssignedTasks) {
+              // Ver solo tareas asignadas al usuario
+              query = query.eq('assigned_to', dbUser?.id);
+            } 
+            else if (filters.taskType === 'created_by_me' && canViewCreatedTasks) {
+              // Ver solo tareas creadas por el usuario
+              query = query.eq('created_by', dbUser?.id);
+            } 
+            else {
+              // Por defecto, ver tareas según permisos
+              let conditions = [];
+              
+              if (canViewCreatedTasks) {
+                conditions.push(`created_by.eq.${dbUser?.id}`);
+              }
+              
+              if (canViewAssignedTasks) {
+                conditions.push(`assigned_to.eq.${dbUser?.id}`);
+              }
+              
+              if (conditions.length > 0) {
+                query = query.or(conditions.join(','));
+              } else {
+                // Fallback si no hay permisos específicos
+                return [];
+              }
+            }
           }
-        } else if (filters.taskType === 'assigned_to_me' && dbUser?.id) {
-          // للمدراء - إذا تم اختيار المهام المكلف بها فقط
-          query = query.eq('assigned_to', dbUser.id);
-        } else if (filters.taskType === 'created_by_me' && dbUser?.id) {
-          // للمدراء - إذا تم اختيار المهام التي كلف بها الآخرين فقط
-          query = query.eq('created_by', dbUser.id);
         }
         
-        // تعديل: يتم تطبيق فلتر الفرع فقط عندما لا يتم عرض المهام التي أنشأها المستخدم
+        // Aplicar filtro de sucursal solo cuando sea necesario
         if (filters.branch_id) {
           query = query.eq('branch_id', filters.branch_id);
         } else if (!isAdmin && dbUser?.branch_id && filters.taskType !== 'created_by_me') {
-          // تحسين: استثناء المهام التي أنشأها المستخدم من فلتر الفرع
-          // الشرط الآن: طبق فلتر الفرع للمستخدم العادي فقط إذا:
-          // - لم يكن المستخدم مديرًا، و
-          // - له فرع محدد، و
-          // - لم يطلب المستخدم تحديدًا رؤية المهام التي أنشأها
-          query = query.eq('branch_id', dbUser.branch_id);
+          // Mejora: No aplicar filtro de sucursal cuando se están viendo tareas creadas por el usuario
+          if (!hasPermission('view:tasks:all') && !hasPermission('view:tasks:own') && filters.taskType !== 'created_by_me') {
+            query = query.eq('branch_id', dbUser.branch_id);
+          }
         }
         
-        // تصفية حسب الإطار الزمني
-        if (filters.timeframe) {
+        // Filtrar por marco de tiempo
+        if (filters.timeframe && filters.timeframe !== 'all') {
           const now = new Date().toISOString();
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           
           if (filters.timeframe === 'today') {
-            // المهام المستحقة اليوم
+            // Tareas para hoy
             const tomorrow = new Date(today);
             tomorrow.setDate(tomorrow.getDate() + 1);
             query = query
               .gte('due_date', today.toISOString())
               .lt('due_date', tomorrow.toISOString());
           } else if (filters.timeframe === 'week') {
-            // المهام المستحقة هذا الأسبوع
+            // Tareas para esta semana
             const weekLater = new Date(today);
             weekLater.setDate(weekLater.getDate() + 7);
             query = query
               .gte('due_date', today.toISOString())
               .lt('due_date', weekLater.toISOString());
           } else if (filters.timeframe === 'month') {
-            // المهام المستحقة هذا الشهر
+            // Tareas para este mes
             const monthLater = new Date(today);
             monthLater.setMonth(monthLater.getMonth() + 1);
             query = query
               .gte('due_date', today.toISOString())
               .lt('due_date', monthLater.toISOString());
           } else if (filters.timeframe === 'overdue') {
-            // المهام المتأخرة
+            // Tareas vencidas
             query = query
               .lt('due_date', now)
               .not('status', 'eq', 'completed')
@@ -121,7 +137,7 @@ export function useTaskList() {
           }
         }
 
-        // الفرز والترتيب
+        // Ordenar
         query = query.order('created_at', { ascending: false });
 
         const { data, error } = await query;
@@ -130,7 +146,7 @@ export function useTaskList() {
           throw error;
         }
 
-        // تصفية إضافية بناءً على البحث (يتم على الخادم)
+        // Filtrar adicionalmente por búsqueda
         let filteredTasks = data || [];
         if (filters.search) {
           const searchLower = filters.search.toLowerCase();
@@ -146,8 +162,8 @@ export function useTaskList() {
       } catch (error) {
         console.error('Error fetching tasks:', error);
         toast({
-          title: 'خطأ',
-          description: 'فشل في جلب المهام',
+          title: 'Error',
+          description: 'Error al cargar las tareas',
           type: 'error'
         });
         return [];
@@ -156,7 +172,7 @@ export function useTaskList() {
     enabled: !!dbUser?.id
   });
   
-  // استعلام للحصول على ملخص المهام
+  // Consulta para obtener resumen de tareas
   const {
     data: taskSummary = {
       total: 0,
@@ -174,62 +190,76 @@ export function useTaskList() {
     queryKey: ['task-summary', dbUser?.id, filters.branch_id],
     queryFn: async () => {
       try {
-        // إنشاء استعلام أساسي
+        // Crear consulta base
         const createBaseQuery = () => {
           let baseQuery = supabase.from('tasks').select('*');
-
-          // تحديد المهام بناءً على المستخدم والفرع
-          if (!isAdmin && dbUser?.id) {
-            // تحسين: إضافة المهام التي أنشأها المستخدم
-            baseQuery = baseQuery.or(`assigned_to.eq.${dbUser.id},created_by.eq.${dbUser.id}`);
+          
+          // Aplicar filtros por permisos
+          if (!isAdmin && !hasPermission('view:tasks:all')) {
+            let conditions = [];
+            
+            if (hasPermission('view:tasks:own')) {
+              conditions.push(`created_by.eq.${dbUser?.id}`);
+            }
+            
+            if (hasPermission('view:tasks:assigned')) {
+              conditions.push(`assigned_to.eq.${dbUser?.id}`);
+            }
+            
+            if (conditions.length > 0) {
+              baseQuery = baseQuery.or(conditions.join(','));
+            } else {
+              // Si no tiene permisos, no mostrar nada
+              return baseQuery.eq('id', '00000000-0000-0000-0000-000000000000'); // ID que no existe
+            }
           }
           
           if (filters.branch_id) {
             baseQuery = baseQuery.eq('branch_id', filters.branch_id);
-          } else if (!isAdmin && dbUser?.branch_id && filters.taskType !== 'created_by_me') {
-            // تطبيق نفس منطق استثناء المهام التي أنشأها المستخدم كما في الاستعلام الرئيسي
+          } else if (!isAdmin && dbUser?.branch_id && !hasPermission('view:tasks:all') && !hasPermission('view:tasks:own')) {
+            // Aplicar filtro de sucursal solo cuando sea necesario
             baseQuery = baseQuery.eq('branch_id', dbUser.branch_id);
           }
           
           return baseQuery;
         };
         
-        // العدد الإجمالي
+        // Total
         const { data: totalData, error: totalError } = await createBaseQuery().select('id');
         if (totalError) throw totalError;
         const total = totalData?.length || 0;
         
-        // عدد المهام الجديدة
+        // Nuevas
         const { data: newData } = await createBaseQuery()
           .eq('status', 'new')
           .select('id');
         const newCount = newData?.length || 0;
         
-        // عدد المهام قيد التنفيذ
+        // En progreso
         const { data: inProgressData } = await createBaseQuery()
           .eq('status', 'in_progress')
           .select('id');
         const inProgressCount = inProgressData?.length || 0;
         
-        // عدد المهام المكتملة
+        // Completadas
         const { data: completedData } = await createBaseQuery()
           .eq('status', 'completed')
           .select('id');
         const completedCount = completedData?.length || 0;
         
-        // عدد المهام المرفوضة
+        // Rechazadas
         const { data: rejectedData } = await createBaseQuery()
           .eq('status', 'rejected')
           .select('id');
         const rejectedCount = rejectedData?.length || 0;
         
-        // عدد المهام المؤجلة
+        // Pospuestas
         const { data: postponedData } = await createBaseQuery()
           .eq('status', 'postponed')
           .select('id');
         const postponedCount = postponedData?.length || 0;
         
-        // عدد المهام المتأخرة
+        // Vencidas
         const now = new Date().toISOString();
         const { data: overdueData } = await createBaseQuery()
           .lt('due_date', now)
@@ -238,14 +268,14 @@ export function useTaskList() {
           .select('id');
         const overdueCount = overdueData?.length || 0;
         
-        // عدد المهام المكلف بها المستخدم
+        // Asignadas a mí
         const { data: assignedToMeData } = await supabase
           .from('tasks')
           .select('id')
           .eq('assigned_to', dbUser?.id);
         const assignedToMeCount = assignedToMeData?.length || 0;
         
-        // عدد المهام التي كلف بها المستخدم غيره
+        // Creadas por mí
         const { data: createdByMeData } = await supabase
           .from('tasks')
           .select('id')
@@ -279,18 +309,18 @@ export function useTaskList() {
       }
     },
     enabled: !!dbUser?.id,
-    refetchInterval: 60000 // تحديث كل دقيقة
+    refetchInterval: 60000 // Actualizar cada minuto
   });
 
   /**
-   * تحديث الفلاتر
+   * Actualizar filtros
    */
   const updateFilters = useCallback((newFilters: Partial<TaskFilters>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   }, []);
 
   /**
-   * إعادة تعيين الفلاتر
+   * Reiniciar filtros
    */
   const resetFilters = useCallback(() => {
     setFilters({

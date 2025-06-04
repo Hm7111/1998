@@ -193,8 +193,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasPermission = useCallback((permission: string): boolean => {
     if (!dbUser) return false;
     
+    // Log permission check for debugging
+    console.debug(`Checking permission: ${permission} for user ${dbUser.email}`);
+    
     // Admins have all permissions
-    if (dbUser.role === 'admin') return true;
+    if (dbUser.role === 'admin') {
+      console.debug(`User is admin, granting permission: ${permission}`);
+      return true;
+    }
     
     // For regular users, check default permissions based on role and any custom permissions
     const defaultUserPermissions = DEFAULT_PERMISSIONS[dbUser.role as keyof typeof DEFAULT_PERMISSIONS] || [];
@@ -202,9 +208,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Get custom permission codes from the database
     const userCustomPermissions: string[] = [];
     
-    // If user has custom permissions assigned
+    // Extract direct permissions (strings) and permissions from custom roles
     if (dbUser.permissions && Array.isArray(dbUser.permissions)) {
-      // Extract direct permissions (strings) and permissions from custom roles
       dbUser.permissions.forEach(perm => {
         if (typeof perm === 'string') {
           userCustomPermissions.push(perm);
@@ -220,6 +225,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Combine default and custom permissions
     const allUserPermissions = [...defaultUserPermissions, ...userCustomPermissions];
     
+    console.debug(`User permissions for ${permission}: ${allUserPermissions.join(', ')}`);
+    
     // Handle ownership-specific permissions (e.g., "edit:letters:own")
     if (permission.endsWith(':own')) {
       const basePermission = permission.replace(':own', '');
@@ -232,7 +239,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check if user has any of the specified permissions
   const hasAnyPermission = useCallback((permissions: string[]): boolean => {
     if (!permissions.length) return true; // If no permissions required, return true
-    return permissions.some(permission => hasPermission(permission));
+    
+    const result = permissions.some(permission => hasPermission(permission));
+    console.debug(`Checking any permissions: [${permissions.join(', ')}] - Result: ${result}`);
+    return result;
   }, [hasPermission]);
 
   // Logout function

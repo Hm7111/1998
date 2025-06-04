@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useThemeStore } from '../../store/theme'
 import { supabase } from '../../lib/supabase'
 import { useHotkeys } from '../../hooks/useHotkeys'
-import { useAuth } from '../../lib/auth'
+import { useAuth, DEFAULT_PERMISSIONS } from '../../lib/auth'
 import { useToast } from '../../hooks/useToast'
 import { useWorkflow } from '../../hooks/useWorkflow'
 import { useQuery } from '@tanstack/react-query'
@@ -36,12 +36,23 @@ export function Header() {
   
   // تسجيل اختصارات لوحة المفاتيح
   useEffect(() => {
+    // تحقق من صلاحيات المستخدم قبل تسجيل الاختصارات المتعلقة بالخطابات
+    const hasLetterPermissions = dbUser && (
+      dbUser.role === 'admin' || 
+      DEFAULT_PERMISSIONS[dbUser.role]?.includes('view:letters') || 
+      DEFAULT_PERMISSIONS[dbUser.role]?.includes('create:letters')
+    );
+
     // تسجيل اختصارات لوحة المفاتيح
     registerHotkey('ctrl+k', () => document.querySelector<HTMLButtonElement>('#keyboard-shortcuts')?.click())
     registerHotkey('ctrl+h', () => document.querySelector<HTMLButtonElement>('#help-guide')?.click())
     registerHotkey('ctrl+d', () => setTheme(theme === 'light' ? 'dark' : 'light'))
-    registerHotkey('ctrl+/', () => navigate('/admin/letters/new'))
-    registerHotkey('ctrl+.', () => navigate('/admin/letters'))
+    
+    // تسجيل اختصارات الخطابات فقط إذا كان المستخدم لديه الصلاحيات
+    if (hasLetterPermissions) {
+      registerHotkey('ctrl+/', () => navigate('/admin/letters/new'))
+      registerHotkey('ctrl+.', () => navigate('/admin/letters'))
+    }
     
     // تنظيف عند إزالة المكون
     return () => {
@@ -97,14 +108,18 @@ export function Header() {
                   <span>تبديل المظهر</span>
                   <kbd className="inline-flex items-center rounded border border-gray-200 dark:border-gray-700 px-2 py-1 text-sm font-medium bg-gray-100 dark:bg-gray-800">Ctrl+D</kbd>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>إنشاء خطاب جديد</span>
-                  <kbd className="inline-flex items-center rounded border border-gray-200 dark:border-gray-700 px-2 py-1 text-sm font-medium bg-gray-100 dark:bg-gray-800">Ctrl+/</kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>عرض الخطابات</span>
-                  <kbd className="inline-flex items-center rounded border border-gray-200 dark:border-gray-700 px-2 py-1 text-sm font-medium bg-gray-100 dark:bg-gray-800">Ctrl+.</kbd>
-                </div>
+                {hasPermission('view:letters') && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span>إنشاء خطاب جديد</span>
+                      <kbd className="inline-flex items-center rounded border border-gray-200 dark:border-gray-700 px-2 py-1 text-sm font-medium bg-gray-100 dark:bg-gray-800">Ctrl+/</kbd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>عرض الخطابات</span>
+                      <kbd className="inline-flex items-center rounded border border-gray-200 dark:border-gray-700 px-2 py-1 text-sm font-medium bg-gray-100 dark:bg-gray-800">Ctrl+.</kbd>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

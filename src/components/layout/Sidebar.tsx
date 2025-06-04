@@ -1,7 +1,7 @@
 import { FileText, Home, Settings, Users, History, Building, Shield, Key, ClipboardCheck, FileCheck, ListTodo } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { cn } from '../../lib/utils'
-import { useAuth } from '../../lib/auth'
+import { useAuth, DEFAULT_PERMISSIONS } from '../../lib/auth'
 import { useQuery } from '@tanstack/react-query'
 import { useWorkflow } from '../../hooks/useWorkflow'
 
@@ -27,13 +27,13 @@ export function Sidebar() {
         name: 'الرئيسية', 
         href: '/admin', 
         icon: Home, 
-        permissions: ['view:dashboard']
+        permissions: []  // الرئيسية متاحة للجميع
       },
       { 
         name: 'الخطابات', 
         href: '/admin/letters', 
         icon: FileText, 
-        permissions: ['view:letters'],
+        permissions: ['view:letters', 'create:letters'],
         exact: false
       },
       {
@@ -133,6 +133,11 @@ export function Sidebar() {
             if (item.permissions && item.permissions.length > 0 && !hasPermission(item.permissions[0]) && !item.permissions.some(p => hasPermission(p))) {
               return null;
             }
+
+            // خاص بالخطابات: تحقق إضافي للتأكد من أن المستخدم لديه صلاحية الخطابات
+            if (item.href.includes('/letters') && !hasPermission('view:letters') && !hasPermission('create:letters')) {
+              return null;
+            }
             
             return (
               <Link
@@ -163,14 +168,16 @@ export function Sidebar() {
         <div className="mt-auto px-3 pb-5 pt-3">
           <div className="bg-[#1e293b] rounded-md p-3 text-xs text-gray-400">
             <p className="flex items-center gap-2 mb-2 font-medium text-gray-300">
-              <ClipboardCheck className="h-4 w-4 text-primary" />
+              <ClipboardCheck className="h-4 w-4 text-primary" /> 
               إحصائيات سريعة
             </p>
             <div className="space-y-1.5">
-              <div className="flex justify-between">
-                <span>الخطابات</span>
-                <span className="font-medium text-gray-300">237</span>
-              </div>
+              {hasPermission('view:letters') && (
+                <div className="flex justify-between">
+                  <span>الخطابات</span>
+                  <span className="font-medium text-gray-300">237</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span>طلبات معلقة</span>
                 <span className="font-medium text-gray-300">{unreadCount}</span>

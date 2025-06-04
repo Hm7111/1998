@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
-import { AlertCircle, ShieldAlert } from 'lucide-react';
+import { ShieldAlert } from 'lucide-react';
 
 interface PermissionRouteProps {
   permissions: string[];
@@ -51,7 +51,7 @@ export function PermissionRoute({ permissions, children, redirectTo = '/admin', 
           <h1 className="text-2xl font-bold mb-4 text-red-700 dark:text-red-300">غير مصرح بالوصول</h1>
           <p className="text-lg mb-6 text-gray-700 dark:text-gray-300">
             ليس لديك الصلاحيات اللازمة للوصول إلى هذه الصفحة:
-            <span className="block mt-2 text-sm font-mono bg-gray-100 dark:bg-gray-700 p-2 rounded-lg inline-block">
+            <span className="block mt-2 text-sm font-mono bg-gray-100 dark:bg-gray-700 p-2 rounded-lg">
               {permissions.join(' أو ')}
             </span>
           </p>

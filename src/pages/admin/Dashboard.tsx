@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
+import { useAuth, DEFAULT_PERMISSIONS } from '../../lib/auth';
 import { motion } from 'framer-motion';
 import { BranchSelector } from '../../components/branches/BranchSelector';
 import { useToast } from '../../hooks/useToast';
@@ -37,6 +37,20 @@ export function Dashboard() {
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   
   // حساب التحية بناءً على الوقت الحالي
+  const hasLetterPermissions = dbUser && (
+    dbUser.role === 'admin' || 
+    DEFAULT_PERMISSIONS[dbUser.role]?.includes('view:letters') || 
+    DEFAULT_PERMISSIONS[dbUser.role]?.includes('create:letters') ||
+    (dbUser.permissions && Array.isArray(dbUser.permissions) && 
+     dbUser.permissions.some(p => 
+       (typeof p === 'string' && (p === 'view:letters' || p === 'create:letters')) ||
+       (typeof p === 'object' && p.type === 'role' && p.permissions && 
+        Array.isArray(p.permissions) && p.permissions.some(rp => 
+          rp === 'view:letters' || rp === 'create:letters'
+        ))
+     ))
+  );
+
   useEffect(() => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) {
@@ -73,6 +87,8 @@ export function Dashboard() {
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
     queryKey: ['letters-stats', period, dbUser?.id, selectedBranch],
     enabled: !!dbUser?.id,
+    // تفعيل الاستعلام فقط إذا كان المستخدم لديه صلاحيات الخطابات
+    enabled: !!dbUser?.id && hasLetterPermissions,
     queryFn: async () => {
       const now = new Date();
       let startDate = new Date();
@@ -171,7 +187,8 @@ export function Dashboard() {
   // آخر الخطابات
   const { data: recentLetters, isLoading: lettersLoading, refetch: refetchLetters } = useQuery({
     queryKey: ['recent-letters', dbUser?.id, selectedBranch],
-    enabled: !!dbUser?.id,
+    // تفعيل الاستعلام فقط إذا كان المستخدم لديه صلاحيات الخطابات
+    enabled: !!dbUser?.id && hasLetterPermissions,
     queryFn: async () => {
       let query = supabase
         .from('letters')
@@ -303,80 +320,106 @@ export function Dashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.1 }}
-        className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
+        className={`grid grid-cols-1 ${hasLetterPermissions ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6 mb-8`}
       >
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
-          <div className="absolute top-0 right-0 opacity-10">
-            <FileText className="h-32 w-32 -mt-6 -mr-6" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">إجمالي الخطابات</h3>
-          <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
-            <span className="text-4xl font-bold">{stats?.total || 0}</span>
-            <span className="text-blue-100">خطاب</span>
-          </div>
-          <div className="mt-4">
-            <button
-              onClick={() => navigate('/admin/letters')}
-              className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              <span>عرض الكل</span>
-            </button>
-          </div>
-        </div>
+        {hasLetterPermissions && (
+          <>
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 opacity-10">
+                <FileText className="h-32 w-32 -mt-6 -mr-6" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">إجمالي الخطابات</h3>
+              <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
+                <span className="text-4xl font-bold">{stats?.total || 0}</span>
+                <span className="text-blue-100">خطاب</span>
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={() => navigate('/admin/letters')}
+                  className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  <span>عرض الكل</span>
+                </button>
+              </div>
+            </div>
 
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
-          <div className="absolute top-0 right-0 opacity-10">
-            <Calendar className="h-32 w-32 -mt-6 -mr-6" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">
-            خطابات {period === 'week' ? 'الأسبوع' : period === 'month' ? 'الشهر' : 'السنة'}
-          </h3>
-          <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
-            <span className="text-4xl font-bold">{stats?.recent || 0}</span>
-            <span className="text-green-100">خطاب</span>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-1">
-            <button
-              onClick={() => setPeriod('week')}
-              className={`text-xs ${period === 'week' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
-            >
-              أسبوع
-            </button>
-            <button
-              onClick={() => setPeriod('month')}
-              className={`text-xs ${period === 'month' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
-            >
-              شهر
-            </button>
-            <button
-              onClick={() => setPeriod('year')}
-              className={`text-xs ${period === 'year' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
-            >
-              سنة
-            </button>
-          </div>
-        </div>
+            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 opacity-10">
+                <Calendar className="h-32 w-32 -mt-6 -mr-6" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">
+                خطابات {period === 'week' ? 'الأسبوع' : period === 'month' ? 'الشهر' : 'السنة'}
+              </h3>
+              <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
+                <span className="text-4xl font-bold">{stats?.recent || 0}</span>
+                <span className="text-green-100">خطاب</span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-1">
+                <button
+                  onClick={() => setPeriod('week')}
+                  className={`text-xs ${period === 'week' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
+                >
+                  أسبوع
+                </button>
+                <button
+                  onClick={() => setPeriod('month')}
+                  className={`text-xs ${period === 'month' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
+                >
+                  شهر
+                </button>
+                <button
+                  onClick={() => setPeriod('year')}
+                  className={`text-xs ${period === 'year' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
+                >
+                  سنة
+                </button>
+              </div>
+            </div>
 
-        <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
-          <div className="absolute top-0 right-0 opacity-10">
-            <Clock className="h-32 w-32 -mt-6 -mr-6" />
+            <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 opacity-10">
+                <Clock className="h-32 w-32 -mt-6 -mr-6" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">المسودات</h3>
+              <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
+                <span className="text-4xl font-bold">{stats?.draft || 0}</span>
+                <span className="text-amber-100">خطاب</span>
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={() => navigate('/admin/letters?status=draft')}
+                  className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  <span>عرض المسودات</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* بطاقات إضافية للمستخدمين الذين ليس لديهم صلاحيات الخطابات */}
+        {!hasLetterPermissions && (
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 opacity-10">
+              <Shield className="h-32 w-32 -mt-6 -mr-6" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">الصلاحيات</h3>
+            <p className="text-sm text-purple-100 mb-2">
+              يمكنك الوصول إلى الأقسام التي تملك صلاحيات لها فقط
+            </p>
+            <div className="mt-4">
+              <button
+                onClick={() => navigate('/admin/settings')}
+                className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                <span>الإعدادات</span>
+              </button>
+            </div>
           </div>
-          <h3 className="text-lg font-semibold mb-2">المسودات</h3>
-          <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
-            <span className="text-4xl font-bold">{stats?.draft || 0}</span>
-            <span className="text-amber-100">خطاب</span>
-          </div>
-          <div className="mt-4">
-            <button
-              onClick={() => navigate('/admin/letters?status=draft')}
-              className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              <span>عرض المسودات</span>
-            </button>
-          </div>
-        </div>
+        )}
       </motion.div>
 
       {/* Activity and Quick Actions */}
@@ -395,31 +438,35 @@ export function Dashboard() {
             </h2>
           </div>
           <div className="p-5 space-y-4">
-            <button
-              onClick={() => navigate('/admin/letters/new')}
-              className="w-full flex items-center p-4 rounded-lg transition-all bg-primary/5 hover:bg-primary/10 border-2 border-primary/10 hover:border-primary/20"
-            >
-              <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center ml-4">
-                <Plus className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1 text-right">
-                <h3 className="font-semibold text-gray-800 dark:text-white">إنشاء خطاب جديد</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">إنشاء خطاب جديد من القوالب المتاحة</p>
-              </div>
-            </button>
+            {hasPermission('create:letters') && (
+              <button
+                onClick={() => navigate('/admin/letters/new')}
+                className="w-full flex items-center p-4 rounded-lg transition-all bg-primary/5 hover:bg-primary/10 border-2 border-primary/10 hover:border-primary/20"
+              >
+                <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center ml-4">
+                  <Plus className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 text-right">
+                  <h3 className="font-semibold text-gray-800 dark:text-white">إنشاء خطاب جديد</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">إنشاء خطاب جديد من القوالب المتاحة</p>
+                </div>
+              </button>
+            )}
             
-            <button
-              onClick={() => navigate('/admin/letters')}
-              className="w-full flex items-center p-4 rounded-lg transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50 border-2 border-gray-100 dark:border-gray-700"
-            >
-              <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center ml-4">
-                <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="flex-1 text-right">
-                <h3 className="font-semibold text-gray-800 dark:text-white">إدارة الخطابات</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">عرض وإدارة جميع الخطابات الخاصة بك</p>
-              </div>
-            </button>
+            {hasPermission('view:letters') && (
+              <button
+                onClick={() => navigate('/admin/letters')}
+                className="w-full flex items-center p-4 rounded-lg transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50 border-2 border-gray-100 dark:border-gray-700"
+              >
+                <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center ml-4">
+                  <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="flex-1 text-right">
+                  <h3 className="font-semibold text-gray-800 dark:text-white">إدارة الخطابات</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">عرض وإدارة جميع الخطابات الخاصة بك</p>
+                </div>
+              </button>
+            )}
             
             {dbUser?.role === 'admin' && (
               <button
@@ -439,7 +486,8 @@ export function Dashboard() {
         </motion.div>
         
         {/* Activity Chart */}
-        <motion.div 
+        {hasLetterPermissions ? (
+          <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
@@ -510,12 +558,39 @@ export function Dashboard() {
             </div>
           </div>
         </motion.div>
+        ) : (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm lg:col-span-2 overflow-hidden"
+          >
+            <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+                <ActivitySquare className="h-5 w-5 ml-2 text-green-500" />
+                نشاط النظام
+              </h2>
+            </div>
+            
+            <div className="p-5">
+              <div className="flex flex-col items-center justify-center py-8">
+                <Shield className="h-16 w-16 text-gray-300 dark:text-gray-600 mb-4" />
+                <h3 className="text-lg font-medium mb-2">مرحباً بك في نظام إدارة المهام</h3>
+                <p className="text-gray-600 dark:text-gray-400 text-center max-w-md mb-4">
+                  يمكنك الوصول إلى الأقسام المتاحة لك من خلال القائمة الجانبية.
+                  للحصول على صلاحيات إضافية، يرجى التواصل مع مدير النظام.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* Recent Letters and Tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Recent Letters */}
-        <motion.div 
+        {hasLetterPermissions ? (
+          <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
@@ -615,13 +690,14 @@ export function Dashboard() {
             )}
           </div>
         </motion.div>
+        ) : null}
         
         {/* Tasks & Reminders */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.5 }}
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden"
+          className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden ${!hasLetterPermissions ? 'lg:col-span-3' : ''}`}
         >
           <div className="p-5 border-b dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">

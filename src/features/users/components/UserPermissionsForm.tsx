@@ -75,7 +75,8 @@ export function UserPermissionsForm({ user, permissions, onSubmit, isLoading }: 
       'settings': 'الإعدادات',
       'system': 'النظام',
       'audit_logs': 'سجلات الأحداث',
-      'approvals': 'الموافقات'
+      'approvals': 'الموافقات',
+      'tasks': 'المهام'
     };
     
     return translations[category] || category;

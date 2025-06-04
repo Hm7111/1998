@@ -101,31 +101,29 @@ export function useUsers() {
       if (Array.isArray(allowedRoles) && !allowedRoles.includes(userData.role)) {
         throw new Error(`الدور الأساسي غير مسموح به. الأدوار المسموح بها هي: ${allowedRoles.join(', ')}`);
       }
-
-      // إنشاء مستخدم جديد باستخدام Edge Function
-      const { data, error: createError } = await supabase.functions.invoke('admin-create-user', {
-        body: {
-          email: userData.email,
-          password: userData.password,
-          user_metadata: {
-            full_name: userData.full_name,
-            role: userData.role,
-            branch_id: userData.branch_id
-          }
+      
+      // إنشاء مستخدم جديد باستخدام Supabase Auth
+      const { data, error: createError } = await supabase.auth.admin.createUser({
+        email: userData.email,
+        password: userData.password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: userData.full_name,
+          role: userData.role,
+          branch_id: userData.branch_id
         }
       });
       
       if (createError) {
         throw new Error(`فشل إنشاء المستخدم: ${createError.message || 'خطأ غير معروف'}`);
       }
-      
-      if (!data || !data.id) {
+
+      if (!data.user || !data.user.id) {
         throw new Error('لم يتم إنشاء المستخدم بشكل صحيح');
       }
       
-      const userId = data.id;
-      
-      // إنشاء سجل المستخدم في جدول users
+      const userId = data.user.id;
+
       const { error: insertError } = await supabase
         .from('users')
         .insert({
@@ -207,15 +205,17 @@ export function useUsers() {
       
       // تحديث كلمة المرور إذا تم توفيرها
       if (userData.password) {
-        // استخدام Edge Function لتحديث كلمة المرور
-        const { error: passwordError } = await supabase.functions.invoke('admin-update-user-password', {
-          body: {
-            user_id: userId,
-            password: userData.password
-          }
+        const { error: passwordError } = await supabase.auth.admin.updateUserById(userId, {
+          password: userData.password
         });
         
-        if (passwordError) throw passwordError;
+        if (passwordError) {
+          throw new Error(
+            `فشل تحديث كلمة المرور: ${
+              passwordError.message || 'خطأ غير معروف'
+            }`
+          );
+        }
       }
       
       // تحديث البيانات في واجهة المستخدم

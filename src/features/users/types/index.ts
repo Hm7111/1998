@@ -7,7 +7,11 @@ export interface UserFormData {
   branch_id: string | null;
   password?: string;
   is_active?: boolean;
-  permissions?: string[];
+  permissions?: Array<{
+    type: string;
+    id: string;
+    name?: string;
+  }> | any[];
 }
 
 export interface UserFilters {

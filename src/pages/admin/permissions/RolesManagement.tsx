@@ -29,17 +29,21 @@ export function RolesManagement() {
   const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [usersWithRole, setUsersWithRole] = useState<Record<string, {count: number, users: string[]}>>({});
   
   // Form states
   const [roleName, setRoleName] = useState('');
   const [roleDescription, setRoleDescription] = useState('');
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [defaultReplacement, setDefaultReplacement] = useState<string>('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   
   // Load roles and permissions
   useEffect(() => {
     if (isAdmin) {
       loadRoles();
       loadPermissions();
+      checkRolesUsage();
     }
   }, [isAdmin]);
   
@@ -48,6 +52,40 @@ export function RolesManagement() {
     role.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     (role.description && role.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+  
+  // Check which roles are in use and by which users
+  async function checkRolesUsage() {
+    try {
+      const { data: users, error } = await supabase
+        .from('users')
+        .select('id, full_name, permissions');
+        
+      if (error) throw error;
+      
+      // Create mapping of role ID to users
+      const roleUsage: Record<string, {count: number, users: string[]}> = {};
+      
+      users?.forEach(user => {
+        if (user.permissions && Array.isArray(user.permissions)) {
+          user.permissions.forEach(perm => {
+            // Check if it's a role permission (assuming roles are stored with type: 'role')
+            if (typeof perm === 'object' && perm.type === 'role' && perm.id) {
+              if (!roleUsage[perm.id]) {
+                roleUsage[perm.id] = { count: 0, users: [] };
+              }
+              roleUsage[perm.id].count++;
+              roleUsage[perm.id].users.push(user.full_name);
+            }
+          });
+        }
+      });
+      
+      setUsersWithRole(roleUsage);
+      
+    } catch (error) {
+      console.error('Error checking role usage:', error);
+    }
+  }
   
   // Load roles from database
   async function loadRoles() {
@@ -201,29 +239,66 @@ export function RolesManagement() {
     }
   }
   
+  // Confirm delete role
+  function confirmDeleteRole(roleId: string) {
+    // Check if role is being used
+    if (usersWithRole[roleId] && usersWithRole[roleId].count > 0) {
+      // Show delete confirmation with role replacement dropdown
+      setDefaultReplacement('');
+      setShowDeleteConfirm(roleId);
+    } else {
+      // No users have this role, can delete directly
+      if (window.confirm(`هل أنت متأكد من حذف هذا الدور؟`)) {
+        deleteRole(roleId);
+      }
+    }
+  }
+  
   // Delete role
-  async function deleteRole(id: string) {
+  async function deleteRole(id: string, replacementRoleId?: string) {
     try {
-      // Check if role is being used by any users by checking permissions JSON array
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('id, full_name, permissions');
+      setLoading(true);
+      
+      // If role is assigned to users and replacement role is provided
+      if (usersWithRole[id]?.count > 0 && replacementRoleId) {
+        // Fetch all users with this role
+        const { data: users, error: usersError } = await supabase
+          .from('users')
+          .select('id, permissions');
+          
+        if (usersError) throw usersError;
         
-      if (usersError) throw usersError;
-      
-      // Check if any user has this role ID in their permissions array
-      const usersWithRole = users?.filter(user => 
-        user.permissions && Array.isArray(user.permissions) && user.permissions.includes(id)
-      );
-      
-      if (usersWithRole && usersWithRole.length > 0) {
-        const userNames = usersWithRole.map(u => u.full_name).join(', ');
-        toast({
-          title: 'لا يمكن الحذف',
-          description: `هذا الدور مستخدم بواسطة المستخدمين التاليين: ${userNames}`,
-          type: 'error'
-        });
-        return;
+        // For each user, update their permissions
+        for (const user of users || []) {
+          if (user.permissions && Array.isArray(user.permissions)) {
+            // Find if user has the role we're deleting
+            const hasRole = user.permissions.some(p => typeof p === 'object' && p.type === 'role' && p.id === id);
+            
+            if (hasRole) {
+              // Replace the old role with the new one
+              const updatedPermissions = user.permissions.map(p => {
+                if (typeof p === 'object' && p.type === 'role' && p.id === id) {
+                  // Get replacement role data
+                  const replacement = roles.find(r => r.id === replacementRoleId);
+                  if (replacement) {
+                    return { type: 'role', id: replacementRoleId, name: replacement.name };
+                  }
+                }
+                return p;
+              });
+              
+              // Update user permissions
+              const { error: updateError } = await supabase
+                .from('users')
+                .update({ permissions: updatedPermissions })
+                .eq('id', user.id);
+                
+              if (updateError) {
+                console.error(`Error updating user ${user.id} permissions:`, updateError);
+              }
+            }
+          }
+        }
       }
       
       // Delete the role
@@ -236,14 +311,18 @@ export function RolesManagement() {
       
       // Invalidate user roles cache
       queryClient.invalidateQueries({ queryKey: ['user-roles'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
       
       loadRoles();
+      checkRolesUsage();
       
       toast({
         title: 'تم الحذف',
         description: 'تم حذف الدور بنجاح',
         type: 'success'
       });
+      
+      setShowDeleteConfirm(null);
     } catch (error: any) {
       console.error('Error deleting role:', error);
       toast({
@@ -251,6 +330,8 @@ export function RolesManagement() {
         description: `حدث خطأ أثناء حذف الدور: ${error?.message || 'خطأ غير معروف'}`,
         type: 'error'
       });
+    } finally {
+      setLoading(false);
     }
   }
   
@@ -416,6 +497,81 @@ export function RolesManagement() {
         </div>
       )}
 
+      {/* Role deletion confirmation with replacement role selection */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4 pb-4 border-b dark:border-gray-800">
+              <h2 className="text-xl font-semibold text-red-600 dark:text-red-400">تأكيد حذف الدور</h2>
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <div className="mb-4 bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg text-yellow-800 dark:text-yellow-300 text-sm">
+                <AlertCircle className="h-5 w-5 inline-block mr-1" />
+                <span>
+                  هذا الدور مستخدم حاليًا بواسطة {usersWithRole[showDeleteConfirm]?.count} مستخدمين:
+                </span>
+                <ul className="mt-2 list-disc list-inside">
+                  {usersWithRole[showDeleteConfirm]?.users.map((userName, idx) => (
+                    <li key={idx}>{userName}</li>
+                  ))}
+                </ul>
+              </div>
+              
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                يرجى اختيار دور بديل لهؤلاء المستخدمين، أو سيتم إزالة الدور منهم بدون بديل.
+              </p>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">
+                  الدور البديل (اختياري)
+                </label>
+                <select
+                  value={defaultReplacement}
+                  onChange={(e) => setDefaultReplacement(e.target.value)}
+                  className="w-full p-2 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                >
+                  <option value="">بدون دور بديل</option>
+                  {roles
+                    .filter(r => r.id !== showDeleteConfirm) // لا تعرض نفس الدور الذي سيتم حذفه
+                    .map(role => (
+                      <option key={role.id} value={role.id}>{role.name}</option>
+                    ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {defaultReplacement ? 'سيتم تعيين المستخدمين إلى هذا الدور' : 'سيتم إزالة الدور من المستخدمين دون بديل'}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="px-4 py-2 border dark:border-gray-700 rounded-lg mr-2 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={() => deleteRole(showDeleteConfirm, defaultReplacement)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-1"></span>
+                ) : null}
+                تأكيد الحذف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
@@ -477,6 +633,7 @@ export function RolesManagement() {
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">اسم الدور</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الوصف</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الصلاحيات</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">المستخدمين</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400">الإجراءات</th>
               </tr>
             </thead>
@@ -520,6 +677,18 @@ export function RolesManagement() {
                     </div>
                   </td>
                   <td className="px-4 py-4">
+                    {usersWithRole[role.id]?.count > 0 ? (
+                      <div className="flex items-center">
+                        <Users className="h-4 w-4 mr-1.5 text-primary" />
+                        <span className="text-sm font-medium">
+                          {usersWithRole[role.id].count} مستخدم
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-500">لا يوجد مستخدمين</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-4">
                     <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => handleEditRole(role)}
@@ -529,11 +698,7 @@ export function RolesManagement() {
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => {
-                          if (window.confirm(`هل أنت متأكد من حذف دور "${role.name}"؟`)) {
-                            deleteRole(role.id);
-                          }
-                        }}
+                        onClick={() => confirmDeleteRole(role.id)}
                         className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                         title="حذف"
                       >

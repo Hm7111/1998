@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Search, Filter, MapPin, Building, UserCheck, UserX } from 'lucide-react'
+import { Plus, Trash2, Search, Filter, MapPin, Building, UserCheck, UserX, Shield } from 'lucide-react'
 import type { User, Branch, UserRole } from '../../types/database'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
@@ -19,9 +19,11 @@ export function Users() {
   const [searchQuery, setSearchQuery] = useState('')
   const [branchFilter, setBranchFilter] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
+  const [roleFilter, setRoleFilter] = useState<string>('all') // إضافة فلتر للأدوار
   const { isAdmin, dbUser } = useAuth()
   const { toast } = useToast()
 
+  // جلب الفروع
   const { data: branches = [] } = useQuery({
     queryKey: ['branches'],
     queryFn: async () => {
@@ -37,6 +39,7 @@ export function Users() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   })
 
+  // جلب الأدوار
   const { data: roles = [] } = useQuery({
     queryKey: ['user-roles'],
     queryFn: async () => {
@@ -56,7 +59,7 @@ export function Users() {
     if (isAdmin) {
       loadUsers()
     }
-  }, [isAdmin, branchFilter])
+  }, [isAdmin, branchFilter, roleFilter])
 
   async function loadUsers() {
     try {
@@ -175,15 +178,36 @@ export function Users() {
     }
   }
 
-  // فلترة المستخدمين حسب البحث
+  // فلترة المستخدمين حسب البحث والفلاتر
   const filteredUsers = users.filter(user => {
+    // فلتر البحث
     const matchesSearch = !searchQuery || 
       user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (user.branches?.name && user.branches.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    // فلتر الدور
+    const matchesRole = roleFilter === 'all' || 
+                        (roleFilter === 'admin' && user.role === 'admin') || 
+                        (roleFilter === 'user' && user.role === 'user') ||
+                        // للأدوار المخصصة، نبحث في permissions
+                        (roleFilter !== 'admin' && roleFilter !== 'user' && user.permissions?.some(
+                          p => typeof p === 'object' && p.type === 'role' && p.id === roleFilter
+                        ));
     
-    return matchesSearch;
+    return matchesSearch && matchesRole;
   });
+
+  // الحصول على اسم الدور المخصص للمستخدم
+  const getUserCustomRole = (user: User): string | null => {
+    if (!user.permissions || !Array.isArray(user.permissions)) return null;
+    
+    const customRole = user.permissions.find(p => 
+      typeof p === 'object' && p.type === 'role'
+    );
+    
+    return customRole?.name || null;
+  };
 
   // منع الوصول إذا لم يكن المستخدم مديراً
   if (!isAdmin) {
@@ -223,8 +247,8 @@ export function Users() {
       {showFilters && (
         <div className="mb-6 p-4 bg-white dark:bg-gray-900 rounded-lg border dark:border-gray-800 shadow-sm">
           <h3 className="text-sm font-medium mb-3">تصفية المستخدمين</h3>
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex-1 min-w-[200px]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
               <label className="block text-sm text-gray-500 mb-1">البحث</label>
               <div className="relative">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -238,7 +262,7 @@ export function Users() {
               </div>
             </div>
             
-            <div className="flex-1 min-w-[200px]">
+            <div>
               <label className="block text-sm text-gray-500 mb-1">تصفية حسب الفرع</label>
               <BranchSelector
                 value={branchFilter}
@@ -248,11 +272,29 @@ export function Users() {
               />
             </div>
             
-            <div className="flex flex-wrap items-center gap-2 self-end">
+            <div>
+              <label className="block text-sm text-gray-500 mb-1">تصفية حسب الدور</label>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="w-full p-2 border dark:border-gray-700 rounded-lg"
+              >
+                <option value="all">جميع الأدوار</option>
+                <option value="admin">مدير</option>
+                <option value="user">مستخدم</option>
+                {/* إضافة الأدوار المخصصة من قاعدة البيانات */}
+                {roles.map(role => (
+                  <option key={role.id} value={role.id}>{role.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="md:col-span-3 flex flex-wrap items-center gap-2">
               <button
                 onClick={() => {
-                  setSearchQuery('')
-                  setBranchFilter(null)
+                  setSearchQuery('');
+                  setBranchFilter(null);
+                  setRoleFilter('all');
                 }}
                 className="px-3 py-2 text-sm border dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
               >
@@ -273,17 +315,18 @@ export function Users() {
             <div className="p-8 text-center">
               <EmptyState
                 title="لا يوجد مستخدمين"
-                description={searchQuery ? "لا يوجد مستخدمين مطابقين لمعايير البحث" : "لم يتم إضافة أي مستخدم بعد"}
+                description={searchQuery || branchFilter || roleFilter !== 'all' ? "لا يوجد مستخدمين مطابقين لمعايير البحث" : "لم يتم إضافة أي مستخدم بعد"}
                 action={{
                   label: "إضافة مستخدم جديد",
                   onClick: handleAdd,
                   icon: <Plus className="h-4 w-4" />
                 }}
-                secondaryAction={searchQuery || branchFilter ? {
+                secondaryAction={searchQuery || branchFilter || roleFilter !== 'all' ? {
                   label: "إعادة ضبط الفلاتر",
                   onClick: () => {
                     setSearchQuery("");
                     setBranchFilter(null);
+                    setRoleFilter('all');
                   }
                 } : undefined}
               />
@@ -296,104 +339,121 @@ export function Users() {
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الاسم</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">البريد الإلكتروني</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الفرع</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الدور</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الدور الأساسي</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الدور المخصص</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الحالة</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">الإجراءات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {filteredUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{user.full_name}</span>
-                          {user.id === dbUser?.id && (
-                            <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 rounded-full">
-                              أنت
-                            </span>
-                          )}
-                          {user.branches && (
-                            <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
-                              {user.branches.code}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">{user.email}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {user.branches ? (
-                          <div className="flex items-center gap-1">
-                            <Building className="h-4 w-4 text-primary" />
-                            <span>{user.branches.name}</span>
-                            <span className="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
-                              {user.branches.code}
-                            </span>
+                  {filteredUsers.map((user) => {
+                    const customRoleName = getUserCustomRole(user);
+                    
+                    return (
+                      <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{user.full_name}</span>
+                            {user.id === dbUser?.id && (
+                              <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 rounded-full">
+                                أنت
+                              </span>
+                            )}
+                            {user.branches && (
+                              <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                                {user.branches.code}
+                              </span>
+                            )}
                           </div>
-                        ) : (
-                          <span className="text-gray-400">غير محدد</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                          user.role === 'admin' 
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' 
-                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                        }`}>
-                          {user.role === 'admin' ? 'مدير' : 'مستخدم'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={`inline-flex rounded-full px-2 text-xs font-semibold ${
-                          user.is_active
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                        }`}>
-                          {user.is_active ? 'نشط' : 'غير نشط'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center gap-x-3">
-                          <button
-                            onClick={() => handleEdit(user)}
-                            className="text-primary hover:underline"
-                          >
-                            تعديل
-                          </button>
-                          
-                          {/* لا تعرض خيار التعطيل للمستخدم الحالي (الأدمن) */}
-                          {user.id !== dbUser?.id && (
-                            user.is_active ? (
-                              <button
-                                onClick={() => handleDeactivate(user)}
-                                className="text-red-600 hover:text-red-700 flex items-center gap-1"
-                                disabled={deleteLoading === user.id}
-                              >
-                                {deleteLoading === user.id ? (
-                                  <span className="inline-block h-4 w-4 rounded-full border-2 border-red-600/30 border-t-red-600 animate-spin"></span>
-                                ) : (
-                                  <UserX className="h-4 w-4" />
-                                )}
-                                <span>تعطيل</span>
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleActivate(user)}
-                                className="text-green-600 hover:text-green-700 flex items-center gap-1"
-                                disabled={activateLoading === user.id}
-                              >
-                                {activateLoading === user.id ? (
-                                  <span className="inline-block h-4 w-4 rounded-full border-2 border-green-600/30 border-t-green-600 animate-spin"></span>
-                                ) : (
-                                  <UserCheck className="h-4 w-4" />
-                                )}
-                                <span>تنشيط</span>
-                              </button>
-                            )
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">{user.email}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          {user.branches ? (
+                            <div className="flex items-center gap-1">
+                              <Building className="h-4 w-4 text-primary" />
+                              <span>{user.branches.name}</span>
+                              <span className="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+                                {user.branches.code}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">غير محدد</span>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                            user.role === 'admin' 
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' 
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                          }`}>
+                            {user.role === 'admin' ? 'مدير' : 'مستخدم'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          {customRoleName ? (
+                            <div className="flex items-center gap-1.5">
+                              <Shield className="h-4 w-4 text-primary" />
+                              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                                {customRoleName}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-500 text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`inline-flex rounded-full px-2 text-xs font-semibold ${
+                            user.is_active
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                          }`}>
+                            {user.is_active ? 'نشط' : 'غير نشط'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex items-center gap-x-3">
+                            <button
+                              onClick={() => handleEdit(user)}
+                              className="text-primary hover:underline"
+                            >
+                              تعديل
+                            </button>
+                            
+                            {/* لا تعرض خيار التعطيل للمستخدم الحالي (الأدمن) */}
+                            {user.id !== dbUser?.id && (
+                              user.is_active ? (
+                                <button
+                                  onClick={() => handleDeactivate(user)}
+                                  className="text-red-600 hover:text-red-700 flex items-center gap-1"
+                                  disabled={deleteLoading === user.id}
+                                >
+                                  {deleteLoading === user.id ? (
+                                    <span className="inline-block h-4 w-4 rounded-full border-2 border-red-600/30 border-t-red-600 animate-spin"></span>
+                                  ) : (
+                                    <UserX className="h-4 w-4" />
+                                  )}
+                                  <span>تعطيل</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleActivate(user)}
+                                  className="text-green-600 hover:text-green-700 flex items-center gap-1"
+                                  disabled={activateLoading === user.id}
+                                >
+                                  {activateLoading === user.id ? (
+                                    <span className="inline-block h-4 w-4 rounded-full border-2 border-green-600/30 border-t-green-600 animate-spin"></span>
+                                  ) : (
+                                    <UserCheck className="h-4 w-4" />
+                                  )}
+                                  <span>تنشيط</span>
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

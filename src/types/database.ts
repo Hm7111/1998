@@ -126,7 +126,11 @@ export interface User {
   created_at: string
   branch_id?: string | null
   branch?: Branch | null
-  permissions?: string[] // Custom permissions for this user
+  permissions?: Array<{
+    type: string;
+    id: string;
+    name?: string;
+  }> | any[] // Custom permissions for this user with role information
   branches?: Branch // For expanded branch data
   updated_at?: string
 }

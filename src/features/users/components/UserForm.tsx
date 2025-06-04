@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, Branch, UserRole } from '../types';
 import { BranchSelector } from '../../../components/branches/BranchSelector';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Shield, Info } from 'lucide-react';
 
 interface UserFormProps {
   user?: User;
@@ -18,7 +18,7 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState('user');
+  const [role, setRole] = useState('user'); // الدور الأساسي - إما 'admin' أو 'user' فقط
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null); // معرف الدور المخصص
   const [branchId, setBranchId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
@@ -30,16 +30,19 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
     if (user) {
       setEmail(user.email);
       setFullName(user.full_name);
-      setRole(user.role); // دائما 'admin' أو 'user' فقط
+      setRole(user.role); // الدور الأساسي - إما 'admin' أو 'user' فقط
       setBranchId(user.branch_id);
       setPassword('');
       setIsActive(user.is_active !== false);
       
-      // البحث عن الدور المخصص من خلال المعرف إذا كان موجوداً في permissions
+      // البحث عن الدور المخصص في permissions
       if (user.permissions && Array.isArray(user.permissions)) {
-        const customRoleId = user.permissions.find(p => p.type === 'role')?.id;
-        if (customRoleId) {
-          setSelectedRoleId(customRoleId);
+        const customRole = user.permissions.find(p => 
+          typeof p === 'object' && p.type === 'role'
+        );
+        
+        if (customRole && customRole.id) {
+          setSelectedRoleId(customRole.id);
         } else {
           setSelectedRoleId(null);
         }
@@ -71,8 +74,8 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       newErrors.full_name = 'الاسم الكامل مطلوب';
     }
     
-    if (!role) {
-      newErrors.role = 'الدور مطلوب';
+    if (!role || (role !== 'admin' && role !== 'user')) {
+      newErrors.role = 'الدور الأساسي مطلوب (مدير أو مستخدم)';
     }
     
     if (!branchId) {
@@ -83,6 +86,14 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       newErrors.password = 'كلمة المرور مطلوبة';
     } else if (password && password.length < 6) {
       newErrors.password = 'كلمة المرور يجب ألا تقل عن 6 أحرف';
+    }
+    
+    // التحقق من وجود الدور المخصص
+    if (selectedRoleId) {
+      const roleExists = roles.some(r => r.id === selectedRoleId);
+      if (!roleExists) {
+        newErrors.custom_role = 'الدور المخصص المحدد غير موجود';
+      }
     }
     
     setErrors(newErrors);
@@ -97,22 +108,23 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
       return;
     }
     
-    // إنشاء مصفوفة الصلاحيات مع الدور المخصص إذا تم اختياره
+    // إنشاء مصفوفة permissions مع الدور المخصص إذا تم اختياره
     let permissions = [];
     if (selectedRoleId) {
       const selectedRole = roles.find(r => r.id === selectedRoleId);
       if (selectedRole) {
-        permissions = [
-          { type: 'role', id: selectedRoleId, name: selectedRole.name },
-          ...(selectedRole.permissions || [])
-        ];
+        permissions.push({
+          type: 'role',
+          id: selectedRoleId,
+          name: selectedRole.name
+        });
       }
     }
     
     const userData = {
       email,
       full_name: fullName,
-      role, // دائما 'admin' أو 'user' فقط
+      role, // الدور الأساسي - إما 'admin' أو 'user' فقط
       branch_id: branchId,
       password,
       is_active: isActive,
@@ -120,6 +132,13 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
     };
     
     onSubmit(userData);
+  };
+
+  // الحصول على الدور المخصص الحالي
+  const getSelectedRoleName = () => {
+    if (!selectedRoleId) return null;
+    const role = roles.find(r => r.id === selectedRoleId);
+    return role ? role.name : null;
   };
   
   return (
@@ -162,37 +181,66 @@ export function UserForm({ user, onSubmit, isLoading, branches, roles }: UserFor
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-1">الدور الأساسي <span className="text-red-500">*</span></label>
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          className={`w-full p-2 border rounded-lg ${
-            errors.role ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
-          }`}
-          required
-        >
-          <option value="user">مستخدم</option>
-          <option value="admin">مدير</option>
-        </select>
-        {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
-      </div>
+      <div className="border-t dark:border-gray-800 pt-4 mt-4">
+        <div className="mb-4">
+          <h3 className="text-md font-medium flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            إعدادات الدور والصلاحيات
+          </h3>
+          <p className="text-xs text-gray-500 mt-1">
+            يمكنك تعيين دور أساسي (مدير أو مستخدم) ودور مخصص إضافي
+          </p>
+        </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-1">الدور المخصص</label>
-        <select
-          value={selectedRoleId || ''}
-          onChange={(e) => setSelectedRoleId(e.target.value || null)}
-          className="w-full p-2 border rounded-lg border-gray-300 dark:border-gray-700"
-        >
-          <option value="">بدون دور مخصص</option>
-          {roles.filter(r => r.name !== 'مدير' && r.name !== 'مستخدم').map(roleItem => (
-            <option key={roleItem.id} value={roleItem.id}>
-              {roleItem.name} {roleItem.permissions?.length === 0 ? '(بدون صلاحيات)' : ''}
-            </option>
-          ))}
-        </select>
-        <p className="text-gray-500 text-xs mt-1">الدور المخصص سيحدد الصلاحيات الإضافية للمستخدم</p>
+        <div>
+          <label className="block text-sm font-medium mb-1">الدور الأساسي <span className="text-red-500">*</span></label>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className={`w-full p-2 border rounded-lg ${
+              errors.role ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+            }`}
+            required
+          >
+            <option value="user">مستخدم</option>
+            <option value="admin">مدير</option>
+          </select>
+          {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
+        </div>
+
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium">الدور المخصص</label>
+            <div className="group relative">
+              <Info className="h-4 w-4 text-gray-400 cursor-pointer" />
+              <div className="absolute bottom-full right-0 mb-2 w-60 p-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                الدور المخصص يمنح المستخدم صلاحيات إضافية محددة في نظام إدارة الصلاحيات
+              </div>
+            </div>
+          </div>
+          <select
+            value={selectedRoleId || ''}
+            onChange={(e) => setSelectedRoleId(e.target.value || null)}
+            className={`w-full p-2 border rounded-lg ${
+              errors.custom_role ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+            }`}
+          >
+            <option value="">بدون دور مخصص</option>
+            {roles.map(roleItem => (
+              <option key={roleItem.id} value={roleItem.id}>
+                {roleItem.name} {roleItem.permissions?.length === 0 ? '(بدون صلاحيات)' : ''}
+              </option>
+            ))}
+          </select>
+          {errors.custom_role && (
+            <p className="text-red-500 text-xs mt-1">{errors.custom_role}</p>
+          )}
+          <p className="text-gray-500 text-xs mt-1">
+            {selectedRoleId
+              ? `الدور المخصص: ${getSelectedRoleName()}`
+              : 'اختر دورًا مخصصًا لمنح المستخدم صلاحيات إضافية'}
+          </p>
+        </div>
       </div>
 
       <div>

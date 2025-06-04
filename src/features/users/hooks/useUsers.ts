@@ -95,9 +95,8 @@ export function useUsers() {
         throw new Error('البريد الإلكتروني مسجل مسبقاً');
       }
 
-      // إنشاء المستخدم بدون تسجيل الدخول تلقائيًا - الخطأ كان هنا
-      // استخدام admin.createUser بدلًا من auth.signUp لتجنب تسجيل الدخول التلقائي
-      const { data, error: adminError } = await supabase.functions.invoke('admin-create-user', {
+      // إنشاء مستخدم جديد باستخدام API الخدمة
+      const { data, error: createError } = await supabase.functions.invoke('admin-create-user', {
         body: {
           email: userData.email,
           password: userData.password,
@@ -109,8 +108,8 @@ export function useUsers() {
         }
       });
       
-      if (adminError) {
-        throw new Error(`فشل إنشاء المستخدم: ${adminError.message || 'خطأ غير معروف'}`);
+      if (createError) {
+        throw new Error(`فشل إنشاء المستخدم: ${createError.message || 'خطأ غير معروف'}`);
       }
       
       if (!data || !data.id) {
@@ -119,7 +118,7 @@ export function useUsers() {
       
       const userId = data.id;
       
-      // التأكد من وجود المستخدم في جدول users
+      // إنشاء سجل المستخدم في جدول users
       const { error: insertError } = await supabase
         .from('users')
         .insert({
@@ -128,25 +127,15 @@ export function useUsers() {
           full_name: userData.full_name,
           role: userData.role,
           branch_id: userData.branch_id,
+          permissions: userData.permissions,
           is_active: userData.is_active !== undefined ? userData.is_active : true
         });
-        
+      
       if (insertError) {
-        // في حالة فشل إدراج البيانات في الجدول، حاول تحديثها بدلاً من ذلك
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({
-            email: userData.email,
-            full_name: userData.full_name,
-            role: userData.role,
-            branch_id: userData.branch_id,
-            is_active: userData.is_active !== undefined ? userData.is_active : true
-          })
-          .eq('id', userId);
-          
-        if (updateError) throw updateError;
+        console.error('Error inserting user record:', insertError);
+        throw insertError;
       }
-
+      
       // تحديث البيانات في واجهة المستخدم
       queryClient.invalidateQueries({ queryKey: ['users'] });
       
@@ -200,9 +189,9 @@ export function useUsers() {
 
       if (updateError) throw updateError;
       
-      // تحديث كلمة المرور إذا تم توفيرها - الخطأ كان هنا
+      // تحديث كلمة المرور إذا تم توفيرها
       if (userData.password) {
-        // استخدام واجهة برمجة التطبيقات الإدارية لتحديث كلمة المرور للمستخدم المحدد
+        // استخدام Edge Function لتحديث كلمة المرور
         const { error: passwordError } = await supabase.functions.invoke('admin-update-user-password', {
           body: {
             user_id: userId,

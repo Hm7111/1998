@@ -228,6 +228,23 @@ export function PermissionsList() {
     return groups;
   }, {} as Record<string, Permission[]>);
   
+  // Translate permission category to Arabic
+  const translateCategory = (category: string): string => {
+    const translations: Record<string, string> = {
+      'letters': 'الخطابات',
+      'templates': 'القوالب',
+      'users': 'المستخدمين',
+      'branches': 'الفروع',
+      'settings': 'الإعدادات',
+      'system': 'النظام',
+      'audit_logs': 'سجلات الأحداث',
+      'approvals': 'الموافقات',
+      'tasks': 'المهام'
+    };
+    
+    return translations[category] || category;
+  };
+  
   if (!isAdmin) {
     return (
       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 text-red-700 dark:text-red-400 p-6 rounded-lg text-center">
@@ -401,7 +418,7 @@ export function PermissionsList() {
               <div className="bg-gray-50 dark:bg-gray-900/50 px-4 py-3 border-b dark:border-gray-800">
                 <h2 className="font-semibold text-gray-900 dark:text-white flex items-center">
                   <Lock className="h-4 w-4 ml-2 text-primary" />
-                  {category}
+                  {translateCategory(category)}
                 </h2>
               </div>
               
@@ -461,7 +478,7 @@ export function PermissionsList() {
             <br />
             <strong>Action:</strong> العملية مثل view، create، edit، delete
             <br />
-            <strong>Resource:</strong> المورد مثل letters، users، templates
+            <strong>Resource:</strong> المورد مثل letters، users، templates، tasks
             <br />
             <strong>Scope:</strong> نطاق الصلاحية (اختياري) مثل own
           </p>
@@ -470,10 +487,10 @@ export function PermissionsList() {
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900/30 rounded-lg p-4 text-green-800 dark:text-green-300">
           <h3 className="font-bold text-lg mb-2">أمثلة على الصلاحيات</h3>
           <ul className="text-sm space-y-1 list-disc mr-4">
-            <li><code className="px-1 bg-green-100 dark:bg-green-900/50 rounded">view:letters</code> - عرض جميع الخطابات</li>
-            <li><code className="px-1 bg-green-100 dark:bg-green-900/50 rounded">edit:letters:own</code> - تعديل الخطابات الخاصة بالمستخدم فقط</li>
-            <li><code className="px-1 bg-green-100 dark:bg-green-900/50 rounded">create:users</code> - إنشاء مستخدمين جدد</li>
-            <li><code className="px-1 bg-green-100 dark:bg-green-900/50 rounded">delete:templates</code> - حذف القوالب</li>
+            <li><code className="px-1 bg-green-100 dark:bg-green-900/50 rounded">view:tasks</code> - عرض جميع المهام</li>
+            <li><code className="px-1 bg-green-100 dark:bg-green-900/50 rounded">create:tasks</code> - إنشاء مهام جديدة</li>
+            <li><code className="px-1 bg-green-100 dark:bg-green-900/50 rounded">edit:tasks:own</code> - تعديل المهام الخاصة بالمستخدم فقط</li>
+            <li><code className="px-1 bg-green-100 dark:bg-green-900/50 rounded">assign:tasks</code> - تعيين المهام لمستخدمين آخرين</li>
           </ul>
         </div>
         

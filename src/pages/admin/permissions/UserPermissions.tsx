@@ -178,6 +178,23 @@ export function UserPermissions() {
     return groups;
   }, {} as Record<string, Permission[]>);
   
+  // Translate permission category to Arabic
+  const translateCategory = (category: string): string => {
+    const translations: Record<string, string> = {
+      'letters': 'الخطابات',
+      'templates': 'القوالب',
+      'users': 'المستخدمين',
+      'branches': 'الفروع',
+      'settings': 'الإعدادات',
+      'system': 'النظام',
+      'audit_logs': 'سجلات الأحداث',
+      'approvals': 'الموافقات',
+      'tasks': 'المهام'
+    };
+    
+    return translations[category] || category;
+  };
+  
   if (!isAdmin) {
     return (
       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 text-red-700 dark:text-red-400 p-6 rounded-lg text-center">
@@ -272,7 +289,7 @@ export function UserPermissions() {
                   {/* Permission categories */}
                   {Object.entries(permissionsByCategory).map(([category, categoryPermissions]) => (
                     <div key={category} className="mb-4 last:mb-0">
-                      <h4 className="font-medium mb-2 text-gray-900 dark:text-white">{category}</h4>
+                      <h4 className="font-medium mb-2 text-gray-900 dark:text-white">{translateCategory(category)}</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {categoryPermissions.map(permission => {
                           const isDefault = isDefaultPermission(permission.id);

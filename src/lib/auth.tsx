@@ -33,7 +33,8 @@ export const DEFAULT_PERMISSIONS = {
     'view:tasks',
     'create:tasks',
     'edit:tasks',
-    'delete:tasks'
+    'delete:tasks',
+    'assign:tasks'
   ],
   user: [
     'view:letters',
@@ -44,7 +45,8 @@ export const DEFAULT_PERMISSIONS = {
     'request:approval',
     'view:tasks',
     'create:tasks:own',
-    'edit:tasks:own'
+    'edit:tasks:own',
+    'complete:tasks:own'
   ]
 }
 

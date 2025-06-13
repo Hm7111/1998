@@ -407,7 +407,7 @@ export function LettersList({}: LetterListProps) {
       ) : filteredLetters.length === 0 ? (
         <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-8 text-center">
           <div className="mx-auto w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-            <File className="h-8 w-8 text-gray-400" />
+            <FileText className="h-8 w-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium mb-2">لا توجد خطابات</h3>
           <p className="text-gray-600 dark:text-gray-400 mb-6">

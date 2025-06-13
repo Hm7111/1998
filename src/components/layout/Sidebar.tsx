@@ -19,10 +19,10 @@ export function Sidebar() {
     enabled: !!dbUser && hasPermission('view:approvals')
   })
   
-  // Define the unreadNotifications variable based on pending approvals count
+  // تحديد عدد الإشعارات غير المقروءة
   const unreadCount = pendingApprovals?.length || 0
 
-  // Define navigation items with permission checks
+  // تعريف عناصر القائمة مع فحص الصلاحيات
   const getNavigationItems = () => {
     const items = [
       { 
@@ -33,13 +33,13 @@ export function Sidebar() {
       },
     ];
     
-    // إضافة قسم الخطابات فقط إذا كان المستخدم يملك أي من صلاحيات الخطابات (عرض أو إنشاء)
-    if (hasPermission('view:letters') || hasPermission('create:letters')) {
+    // إضافة قسم الخطابات فقط إذا كان المستخدم يملك أي من صلاحيات الخطابات
+    if (hasPermission('view:letters')) {
       items.push({ 
         name: 'الخطابات', 
         href: '/admin/letters', 
         icon: FileText, 
-        permissions: ['view:letters', 'create:letters'],
+        permissions: ['view:letters'],
         exact: false
       });
     }
@@ -65,7 +65,8 @@ export function Sidebar() {
       });
     }
     
-    if (isAdmin || hasPermission('view:users')) {
+    // إضافة أقسام إدارية إذا كان المستخدم مديراً أو لديه الصلاحيات المناسبة
+    if (hasPermission('view:users')) {
       items.push(
         { 
           name: 'المستخدمين', 
@@ -76,7 +77,7 @@ export function Sidebar() {
       );
     }
     
-    if (isAdmin || hasPermission('view:branches')) {
+    if (hasPermission('view:branches')) {
       items.push(
         { 
           name: 'الفروع', 
@@ -87,7 +88,7 @@ export function Sidebar() {
       );
     }
     
-    if (isAdmin || hasPermission('view:permissions')) {
+    if (hasPermission('view:permissions')) {
       items.push(
         { 
           name: 'الصلاحيات', 
@@ -98,7 +99,7 @@ export function Sidebar() {
       );
     }
     
-    if (isAdmin || hasPermission('view:audit_logs')) {
+    if (hasPermission('view:audit_logs')) {
       items.push(
         { 
           name: 'سجلات الأحداث', 
@@ -109,6 +110,7 @@ export function Sidebar() {
       );
     }
     
+    // قسم الإعدادات متاح للجميع
     items.push({ 
       name: 'الإعدادات', 
       href: '/admin/settings', 
@@ -170,7 +172,7 @@ export function Sidebar() {
         </div>
         
         <div className="mt-auto px-3 pb-5 pt-3">
-          {hasPermission('view:letters') && unreadCount > 0 && (
+          {unreadCount > 0 && hasPermission('view:approvals') && (
             <div className="bg-[#1e293b] rounded-md p-3 text-xs text-gray-400">
               <p className="flex items-center gap-2 mb-2 font-medium text-gray-300">
                 <ClipboardCheck className="h-4 w-4 text-primary" /> 
@@ -180,7 +182,7 @@ export function Sidebar() {
                 {hasPermission('view:letters') && (
                   <div className="flex justify-between">
                     <span>الخطابات</span>
-                    <span className="font-medium text-gray-300">237</span>
+                    <span className="font-medium text-gray-300">0</span>
                   </div>
                 )}
                 {hasPermission('view:approvals') && (

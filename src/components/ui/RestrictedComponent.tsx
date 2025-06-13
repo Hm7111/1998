@@ -11,11 +11,11 @@ interface RestrictedComponentProps {
 }
 
 /**
- * Component that shows its content only if the user has the necessary permissions
- * @param permissions - List of permissions required (must have at least one)
- * @param children - Content to show if the user has permission
- * @param fallback - Alternative content to show if the user does not have permission
- * @param showWarningToast - Whether to show a warning toast if the user doesn't have permission
+ * مكون يقوم بعرض محتواه فقط إذا كان المستخدم يملك الصلاحيات المطلوبة
+ * @param permissions - قائمة الصلاحيات المطلوبة (يجب أن يملك المستخدم واحدة على الأقل)
+ * @param children - المحتوى الذي سيعرض إذا كان المستخدم يملك الصلاحية
+ * @param fallback - محتوى بديل يعرض إذا لم يكن المستخدم يملك الصلاحية
+ * @param showWarningToast - إظهار تنبيه إذا لم يكن المستخدم يملك الصلاحية
  */
 export function RestrictedComponent({ 
   permissions, 
@@ -23,7 +23,7 @@ export function RestrictedComponent({
   fallback = null,
   showWarningToast = false
 }: RestrictedComponentProps) {
-  const { hasAnyPermission, user } = useAuth();
+  const { hasPermission, hasAnyPermission, user } = useAuth();
   const { toast } = useToast();
   
   // عرض تنبيه إذا لم يكن لدى المستخدم الصلاحيات
@@ -37,26 +37,21 @@ export function RestrictedComponent({
     }
   }, [user, hasAnyPermission, permissions, showWarningToast, toast]);
   
-  if (permissions.length === 0 || hasAnyPermission(permissions)) {
+  // إذا لم تكن هناك صلاحيات مطلوبة، اعرض المحتوى دائماً
+  if (permissions.length === 0) {
     return <>{children}</>;
   }
   
+  // التحقق إذا كان المستخدم يملك أي من الصلاحيات المطلوبة
+  if (hasAnyPermission(permissions)) {
+    return <>{children}</>;
+  }
+  
+  // إذا تم توفير محتوى بديل، اعرضه
   if (fallback) {
     return <>{fallback}</>;
   }
   
-  // عرض رسالة افتراضية إذا لم يتم توفير محتوى بديل
-  return (
-    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 p-6 rounded-lg">
-      <div className="flex items-center gap-3">
-        <Shield className="h-8 w-8 text-red-600 dark:text-red-400" />
-        <div>
-          <h3 className="text-lg font-bold text-red-700 dark:text-red-300">غير مصرح بالوصول</h3>
-          <p className="text-red-600 dark:text-red-400">
-            ليس لديك الصلاحيات اللازمة للوصول إلى هذا المحتوى
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+  // إذا لم يكن هناك محتوى بديل، لا تعرض شيئاً
+  return null;
 }

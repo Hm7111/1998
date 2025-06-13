@@ -2,51 +2,51 @@ import { useEffect, useState, createContext, useContext, useCallback } from 'rea
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import type { User as AuthUser } from '@supabase/supabase-js'
-import type { User as DbUser, Permission } from '../types/database'
+import type { User as DbUser } from '../types/database'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
-// Default permissions for each role
+// تبسيط نظام الصلاحيات بقائمة ثابتة للصلاحيات الأساسية
 export const DEFAULT_PERMISSIONS = {
   admin: [
-    // Sistema de cartas
+    // نظام الخطابات
     'view:letters',
     'create:letters',
     'edit:letters',
     'delete:letters',
     'export:letters',
     
-    // Sistema de plantillas
+    // نظام القوالب
     'view:templates',
     'create:templates',
     'edit:templates',
     'delete:templates',
     
-    // Sistema de usuarios
+    // نظام المستخدمين
     'view:users',
     'create:users',
     'edit:users',
     'delete:users',
     
-    // Sistema de sucursales
+    // نظام الفروع
     'view:branches',
     'create:branches',
     'edit:branches',
     'delete:branches',
     
-    // Configuración del sistema
+    // إعدادات النظام
     'view:settings',
     'edit:settings',
     
-    // Registros de auditoría
+    // سجلات التدقيق
     'view:audit_logs',
     
-    // Sistema de aprobaciones
+    // نظام الموافقات
     'view:approvals',
     'approve:letters',
     'reject:letters',
     'request:approval',
     
-    // Sistema de tareas
+    // نظام المهام
     'view:tasks',
     'create:tasks',
     'edit:tasks',
@@ -56,42 +56,23 @@ export const DEFAULT_PERMISSIONS = {
     'view:tasks:all'
   ],
   user: [
-    // Sistema de cartas
-    'view:letters',
-    'create:letters',
-    'edit:letters:own',
-    'delete:letters:own',
-    'export:letters',
-    
-    // Sistema de plantillas
-    'view:templates',
-    
-    // Sistema de aprobaciones
-    'request:approval',
-    'view:approvals:own',
-    
-    // Sistema de tareas
-    'view:tasks',
-    'create:tasks:own',
-    'edit:tasks:own',
-    'complete:tasks:own',
-    'view:tasks:assigned'
+    // لا يوجد صلاحيات افتراضية للمستخدم العادي
   ]
 }
 
-// Type for auth context
+// نوع بيانات سياق المصادقة
 interface AuthContextType {
   user: AuthUser | null;
   dbUser: DbUser | null;
   loading: boolean;
   isAdmin: boolean;
-  hasPermission: (permission: string) => boolean;
+  hasPermission: (permission: string | string[]) => boolean;
   hasAnyPermission: (permissions: string[]) => boolean;
   logout: () => Promise<void>;
   reloadPermissions: () => Promise<void>;
 }
 
-// Create auth context
+// إنشاء سياق المصادقة
 const AuthContext = createContext<AuthContextType>({
   user: null,
   dbUser: null,
@@ -103,41 +84,38 @@ const AuthContext = createContext<AuthContextType>({
   reloadPermissions: async () => {},
 });
 
-// Auth provider component
+// مكون مزود المصادقة
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  // Load user data from Supabase
+  // تحميل بيانات المستخدم من Supabase
   const { data: dbUser, isLoading: isDbUserLoading, refetch: refetchUser } = useQuery({
     queryKey: ['user', user?.id],
     queryFn: async () => {
       if (!user?.id) return null
       
       try {
-        // Query by id instead of email since we have a foreign key constraint with auth.users
-        // Use RPC function to get user with complete branch details
+        // استخدام دالة RPC للحصول على بيانات المستخدم مع تفاصيل الفرع
         const { data, error } = await supabase
           .rpc('get_user_with_branch_details', { user_id: user.id })
           .single()
         
         if (error) {
-          console.error('Error fetching user data:', error);
+          console.error('خطأ في جلب بيانات المستخدم:', error);
           throw error;
         }
         
-       console.log('Loaded user data:', data);
-       
-        // Importante: verificar si el usuario está activo
+        // التحقق من أن المستخدم نشط
         if (data && !data.is_active && data.role !== 'admin') {
-          // Si el usuario no está activo, cerrar sesión y redirigir a la página de inicio de sesión
+          // إذا كان المستخدم غير نشط، قم بتسجيل خروجه وتوجيهه لصفحة الدخول
           await supabase.auth.signOut()
           setUser(null)
           navigate('/login', { 
             state: { 
-              message: 'Tu cuenta ha sido desactivada. Por favor, contacta al administrador.' 
+              message: 'تم تعطيل حسابك. يرجى التواصل مع المسؤول.' 
             } 
           })
           return null
@@ -145,17 +123,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         return data
       } catch (error) {
-        console.error('Error fetching user data:', error);
+        console.error('خطأ في جلب بيانات المستخدم:', error);
         return null;
       }
     },
     enabled: !!user?.id,
-    staleTime: 1000 * 60 * 1, // 1 minuto - reducir tiempo de refresco para actualizar más frecuentemente
-    cacheTime: 1000 * 60 * 30, // 30 minutos
+    staleTime: 60000, // تقليل وقت الصلاحية إلى دقيقة واحدة
+    cacheTime: 1000 * 60 * 30, // 30 دقيقة
     retry: 3
   })
 
-  // Function to reload user permissions (useful after role changes)
+  // دالة لإعادة تحميل صلاحيات المستخدم
   const reloadPermissions = useCallback(async () => {
     if (user?.id) {
       await refetchUser();
@@ -168,7 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession()
         setUser(session?.user ?? null)
       } catch (error) {
-        console.error('Error loading user:', error)
+        console.error('خطأ في تحميل المستخدم:', error)
       } finally {
         setLoading(false)
       }
@@ -189,73 +167,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [queryClient])
 
-  // Check if user has a specific permission
-  const hasPermission = useCallback((permission: string): boolean => {
+  // دالة للتحقق من صلاحية محددة أو مجموعة صلاحيات (يجب أن تكون جميعها متوفرة)
+  const hasPermission = useCallback((permission: string | string[]): boolean => {
+    // إذا كان المستخدم غير موجود أو البيانات غير متوفرة
     if (!dbUser) return false;
     
-    // Log permission check for debugging
-    console.debug(`Checking permission: ${permission} for user ${dbUser.email}`);
-    
-    // Admins have all permissions
+    // إذا كان المستخدم مدير، لديه جميع الصلاحيات
     if (dbUser.role === 'admin') {
-      console.debug(`User is admin, granting permission: ${permission}`);
       return true;
     }
     
-    // For regular users, check default permissions based on role and any custom permissions
-    const defaultUserPermissions = DEFAULT_PERMISSIONS[dbUser.role as keyof typeof DEFAULT_PERMISSIONS] || [];
+    // صلاحيات المستخدم من الجدول
+    const userPermissions = dbUser.permissions || [];
     
-    // Get custom permission codes from the database
-    const userCustomPermissions: string[] = [];
-    
-    // Extract direct permissions (strings) and permissions from custom roles
-    if (dbUser.permissions && Array.isArray(dbUser.permissions)) {
-      dbUser.permissions.forEach(perm => {
-        if (typeof perm === 'string') {
-          userCustomPermissions.push(perm);
-        } else if (typeof perm === 'object' && perm.type === 'role' && perm.permissions) {
-          // If this is a role object with permissions array, add those permissions
-          if (Array.isArray(perm.permissions)) {
-            userCustomPermissions.push(...perm.permissions);
-          }
-        }
-      });
+    // إذا كان المطلوب التحقق من مجموعة صلاحيات (يجب توفرها جميعاً)
+    if (Array.isArray(permission)) {
+      return permission.every(p => userPermissions.includes(p));
     }
     
-    // Combine default and custom permissions
-    const allUserPermissions = [...defaultUserPermissions, ...userCustomPermissions];
-    
-    console.debug(`User permissions for ${permission}: ${allUserPermissions.join(', ')}`);
-    
-    // Handle ownership-specific permissions (e.g., "edit:letters:own")
-    if (permission.endsWith(':own')) {
-      const basePermission = permission.replace(':own', '');
-      return allUserPermissions.includes(basePermission) || allUserPermissions.includes(permission);
-    }
-    
-    return allUserPermissions.includes(permission);
+    // التحقق من صلاحية واحدة
+    return userPermissions.includes(permission);
   }, [dbUser]);
 
-  // Check if user has any of the specified permissions
+  // دالة للتحقق من وجود أي صلاحية من مجموعة صلاحيات
   const hasAnyPermission = useCallback((permissions: string[]): boolean => {
-    if (!permissions.length) return true; // If no permissions required, return true
+    if (!permissions.length) return true; // إذا لم تكن هناك صلاحيات مطلوبة، السماح
     
-    const result = permissions.some(permission => hasPermission(permission));
-    console.debug(`Checking any permissions: [${permissions.join(', ')}] - Result: ${result}`);
-    return result;
-  }, [hasPermission]);
+    // إذا كان المستخدم غير موجود
+    if (!dbUser) return false;
+    
+    // إذا كان المستخدم مدير، لديه جميع الصلاحيات
+    if (dbUser.role === 'admin') {
+      return true;
+    }
+    
+    // التحقق من وجود أي صلاحية من القائمة
+    const userPermissions = dbUser.permissions || [];
+    return permissions.some(permission => userPermissions.includes(permission));
+  }, [dbUser]);
 
-  // Logout function
+  // دالة تسجيل الخروج
   const logout = useCallback(async () => {
     try {
       await supabase.auth.signOut();
       navigate('/login', {
         state: {
-          message: 'Se ha cerrado la sesión exitosamente'
+          message: 'تم تسجيل الخروج بنجاح'
         }
       });
     } catch (error) {
-      console.error('Error logging out:', error);
+      console.error('خطأ في تسجيل الخروج:', error);
     }
   }, [navigate]);
 
@@ -275,11 +236,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-// Custom hook for using auth context
+// دالة للاستخدام في المكونات
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error('يجب استخدام useAuth داخل AuthProvider')
   }
   return context
 }

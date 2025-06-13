@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { User } from '../types';
 
 /**
- * هوك متخصص لإدارة المستخدمين
+ * هوك متخصص لإدارة المستخدمين بدعم نظام الصلاحيات المبسط
  */
 export function useUsers() {
   const [isLoading, setIsLoading] = useState(false);
@@ -47,15 +47,7 @@ export function useUsers() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
         },
-        body: JSON.stringify({
-          ...userData,
-          // تحويل الصلاحيات إلى الشكل المناسب
-          permissions: userData.permissions ? 
-            Array.isArray(userData.permissions) ? 
-              userData.permissions : 
-              [userData.permissions] : 
-            []
-        })
+        body: JSON.stringify(userData)
       });
       
       if (!response.ok) {
@@ -211,64 +203,9 @@ export function useUsers() {
   }, [toast, queryClient]);
 
   /**
-   * استرداد كلمة مرور المستخدم
-   */
-  const resetUserPassword = useCallback(async (userId: string) => {
-    try {
-      setIsLoading(true);
-
-      // البريد الإلكتروني للمستخدم مطلوب لإرسال إعادة تعيين كلمة المرور
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('email')
-        .eq('id', userId)
-        .single();
-
-      if (userError) throw userError;
-      if (!userData) throw new Error('لم يتم العثور على المستخدم');
-
-      // استخدام Edge Function لإعادة تعيين كلمة المرور
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        },
-        body: JSON.stringify({
-          action: 'reset_password',
-          email: userData.email
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'فشل في إرسال رابط إعادة تعيين كلمة المرور');
-      }
-
-      toast({
-        title: 'تم الإرسال',
-        description: 'تم إرسال رابط إعادة تعيين كلمة المرور إلى بريد المستخدم الإلكتروني',
-        type: 'success'
-      });
-
-      return true;
-    } catch (error) {
-      console.error('Error resetting password:', error);
-      toast({
-        title: 'خطأ',
-        description: error instanceof Error ? error.message : 'حدث خطأ أثناء إعادة تعيين كلمة المرور',
-        type: 'error'
-      });
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]);
-
-  /**
    * تحديث صلاحيات المستخدم
    */
-  const updateUserPermissions = useCallback(async (userId: string, permissions: any[]) => {
+  const updateUserPermissions = useCallback(async (userId: string, permissions: string[]) => {
     try {
       setIsLoading(true);
 
@@ -311,7 +248,6 @@ export function useUsers() {
     createUser,
     updateUser,
     toggleUserStatus,
-    resetUserPassword,
     updateUserPermissions
   };
 }

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { X, Shield, Check, Lock } from 'lucide-react';
-import { User, Permission } from '../../types/database';
+import { User } from '../../types/database';
 import { useUsers } from '../../features/users/hooks';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../../lib/supabase';
+import { useToast } from '../../hooks/useToast';
 
 interface UserPermissionsDialogProps {
   user: User;
@@ -14,41 +13,59 @@ interface UserPermissionsDialogProps {
 
 export function UserPermissionsDialog({ user, isOpen, onClose, onSuccess }: UserPermissionsDialogProps) {
   const { updateUserPermissions, isLoading } = useUsers();
+  const { toast } = useToast();
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   
-  // جلب الصلاحيات
-  const { data: permissions = [] } = useQuery({
-    queryKey: ['permissions'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('permissions')
-        .select('*')
-        .order('code');
-      
-      if (error) throw error;
-      return data as Permission[];
-    }
-  });
-
-  // تحميل صلاحيات المستخدم عند فتح النافذة
+  // الصلاحيات المتاحة
+  const availablePermissions = [
+    { id: 'view:letters', name: 'عرض الخطابات', description: 'السماح للمستخدم بعرض الخطابات' },
+    { id: 'create:letters', name: 'إنشاء الخطابات', description: 'السماح للمستخدم بإنشاء خطابات جديدة' },
+    { id: 'edit:letters', name: 'تعديل الخطابات', description: 'السماح للمستخدم بتعديل جميع الخطابات' },
+    { id: 'edit:letters:own', name: 'تعديل الخطابات الخاصة', description: 'السماح للمستخدم بتعديل خطاباته فقط' },
+    { id: 'delete:letters', name: 'حذف الخطابات', description: 'السماح للمستخدم بحذف جميع الخطابات' },
+    { id: 'delete:letters:own', name: 'حذف الخطابات الخاصة', description: 'السماح للمستخدم بحذف خطاباته فقط' },
+    { id: 'export:letters', name: 'تصدير الخطابات', description: 'السماح للمستخدم بتصدير الخطابات' },
+    { id: 'view:approvals', name: 'عرض طلبات الموافقة', description: 'السماح للمستخدم بعرض طلبات الموافقة' },
+    { id: 'view:approvals:own', name: 'عرض طلبات الموافقة الخاصة', description: 'السماح للمستخدم بعرض طلبات الموافقة الخاصة به' },
+    { id: 'approve:letters', name: 'الموافقة على الخطابات', description: 'السماح للمستخدم بالموافقة على الخطابات' },
+    { id: 'reject:letters', name: 'رفض الخطابات', description: 'السماح للمستخدم برفض الخطابات' },
+    { id: 'request:approval', name: 'طلب موافقة', description: 'السماح للمستخدم بطلب موافقة على الخطابات' },
+    { id: 'view:tasks', name: 'عرض المهام', description: 'السماح للمستخدم بعرض المهام' },
+    { id: 'view:tasks:assigned', name: 'عرض المهام المسندة', description: 'السماح للمستخدم بعرض المهام المسندة إليه' },
+    { id: 'view:tasks:own', name: 'عرض المهام الخاصة', description: 'السماح للمستخدم بعرض المهام الخاصة به' },
+    { id: 'create:tasks', name: 'إنشاء المهام', description: 'السماح للمستخدم بإنشاء مهام جديدة' },
+    { id: 'create:tasks:own', name: 'إنشاء المهام الخاصة', description: 'السماح للمستخدم بإنشاء مهام خاصة به' },
+    { id: 'edit:tasks', name: 'تعديل المهام', description: 'السماح للمستخدم بتعديل المهام' },
+    { id: 'edit:tasks:own', name: 'تعديل المهام الخاصة', description: 'السماح للمستخدم بتعديل المهام الخاصة به' },
+    { id: 'delete:tasks', name: 'حذف المهام', description: 'السماح للمستخدم بحذف المهام' },
+    { id: 'delete:tasks:own', name: 'حذف المهام الخاصة', description: 'السماح للمستخدم بحذف المهام الخاصة به' },
+    { id: 'assign:tasks', name: 'تعيين المهام', description: 'السماح للمستخدم بتعيين المهام لمستخدمين آخرين' },
+    { id: 'complete:tasks', name: 'إكمال المهام', description: 'السماح للمستخدم بإكمال المهام' },
+    { id: 'complete:tasks:own', name: 'إكمال المهام الخاصة', description: 'السماح للمستخدم بإكمال المهام الخاصة به' },
+    { id: 'view:branches', name: 'عرض الفروع', description: 'السماح للمستخدم بعرض الفروع' },
+    { id: 'view:audit_logs', name: 'عرض سجلات النظام', description: 'السماح للمستخدم بعرض سجلات النظام' },
+  ];
+  
+  // تصنيف الصلاحيات حسب النوع
+  const permissionCategories = {
+    'letters': { name: 'الخطابات', permissions: availablePermissions.filter(p => p.id.includes('letters') && !p.id.includes('approve')) },
+    'approvals': { name: 'الموافقات', permissions: availablePermissions.filter(p => p.id.includes('approval') || p.id.includes('approve')) },
+    'tasks': { name: 'المهام', permissions: availablePermissions.filter(p => p.id.includes('task')) },
+    'other': { name: 'أخرى', permissions: availablePermissions.filter(p => !p.id.includes('letters') && !p.id.includes('approval') && !p.id.includes('approve') && !p.id.includes('task')) },
+  };
+  
+  // تحميل صلاحيات المستخدم الحالية عند فتح النافذة
   useEffect(() => {
-    if (user && user.permissions) {
+    if (user) {
       if (Array.isArray(user.permissions)) {
-        // تصفية الصلاحيات للحصول على المعرفات فقط
-        const permIds = user.permissions
-          .filter(p => typeof p === 'string')
-          .map(p => p);
-        
-        setSelectedPermissions(permIds);
+        setSelectedPermissions(user.permissions);
       } else {
         setSelectedPermissions([]);
       }
-    } else {
-      setSelectedPermissions([]);
     }
   }, [user]);
-
-  // تبديل اختيار صلاحية
+  
+  // تبديل تحديد الصلاحية
   const togglePermission = (permissionId: string) => {
     setSelectedPermissions(prev => {
       if (prev.includes(permissionId)) {
@@ -58,41 +75,31 @@ export function UserPermissionsDialog({ user, isOpen, onClose, onSuccess }: User
       }
     });
   };
-
-  // تجميع الصلاحيات حسب الفئة
-  const permissionsByCategory = permissions.reduce((groups, permission) => {
-    const parts = permission.code.split(':');
-    const category = parts[1]; // استخدام المورد كفئة
-    if (!groups[category]) {
-      groups[category] = [];
-    }
-    groups[category].push(permission);
-    return groups;
-  }, {} as Record<string, Permission[]>);
-  
-  // ترجمة فئة الصلاحية إلى العربية
-  const translateCategory = (category: string): string => {
-    const translations: Record<string, string> = {
-      'letters': 'الخطابات',
-      'templates': 'القوالب',
-      'users': 'المستخدمين',
-      'branches': 'الفروع',
-      'settings': 'الإعدادات',
-      'system': 'النظام',
-      'audit_logs': 'سجلات الأحداث',
-      'approvals': 'الموافقات',
-      'tasks': 'المهام'
-    };
-    
-    return translations[category] || category;
-  };
   
   // حفظ الصلاحيات
-  const handleSave = async () => {
-    const success = await updateUserPermissions(user.id, selectedPermissions);
-    if (success && onSuccess) {
-      onSuccess();
-      onClose();
+  const handleSavePermissions = async () => {
+    try {
+      const success = await updateUserPermissions(user.id, selectedPermissions);
+      
+      if (success) {
+        toast({
+          title: 'تم الحفظ',
+          description: 'تم تحديث صلاحيات المستخدم بنجاح',
+          type: 'success'
+        });
+        
+        if (onSuccess) {
+          onSuccess();
+        }
+        onClose();
+      }
+    } catch (error) {
+      console.error('Error updating permissions:', error);
+      toast({
+        title: 'خطأ',
+        description: 'حدث خطأ أثناء تحديث الصلاحيات',
+        type: 'error'
+      });
     }
   };
 
@@ -100,10 +107,10 @@ export function UserPermissionsDialog({ user, isOpen, onClose, onSuccess }: User
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center overflow-auto p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-3xl w-full">
         <div className="p-5 border-b dark:border-gray-800 flex items-center justify-between flex-shrink-0">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-semibold flex items-center">
+            <Shield className="h-5 w-5 ml-2 text-primary" />
             إدارة صلاحيات {user.full_name}
           </h2>
           <button
@@ -113,143 +120,124 @@ export function UserPermissionsDialog({ user, isOpen, onClose, onSuccess }: User
             <X className="h-5 w-5" />
           </button>
         </div>
-
+        
         <div className="p-5 overflow-y-auto flex-1">
           {/* معلومات المستخدم */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="mb-6 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <h3 className="text-sm text-gray-500 dark:text-gray-400 mb-1">البريد الإلكتروني</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">البريد الإلكتروني</p>
                 <p className="font-medium">{user.email}</p>
               </div>
-              
               <div>
-                <h3 className="text-sm text-gray-500 dark:text-gray-400 mb-1">الدور الأساسي</h3>
-                <div className="flex items-center gap-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">الفرع</p>
+                <p className="font-medium">
+                  {user.branch?.name || 'غير محدد'}
+                  {user.branch?.code && ` (${user.branch.code})`}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">الدور</p>
+                <div className="flex items-center gap-2">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     user.role === 'admin'
                       ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
                       : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
                   }`}>
-                    <Shield className="h-3.5 w-3.5 mr-1" />
+                    <Shield className="h-3.5 w-3.5 ml-1" />
                     {user.role === 'admin' ? 'مدير' : 'مستخدم'}
                   </span>
                 </div>
               </div>
-              
               <div>
-                <h3 className="text-sm text-gray-500 dark:text-gray-400 mb-1">الفرع</h3>
-                <p className="font-medium">{user.branches?.name || 'غير محدد'}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-sm text-gray-500 dark:text-gray-400 mb-1">الحالة</h3>
-                <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                  user.is_active
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                }`}>
-                  {user.is_active ? 'نشط' : 'غير نشط'}
-                </span>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">الحالة</p>
+                <p className="font-medium">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    user.is_active
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                      : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                  }`}>
+                    {user.is_active ? 'نشط' : 'غير نشط'}
+                  </span>
+                </p>
               </div>
             </div>
           </div>
-
-          <div className="border dark:border-gray-800 rounded-lg mb-4">
-            <div className="border-b dark:border-gray-800 p-4 flex justify-between items-center">
-              <h3 className="font-medium">تحديد الصلاحيات</h3>
-              
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {selectedPermissions.length} صلاحية محددة
-                </span>
-                
-                <button
-                  type="button"
-                  className="text-sm text-primary hover:text-primary/80"
-                  onClick={() => setSelectedPermissions([])}
-                >
-                  إعادة ضبط
-                </button>
-              </div>
-            </div>
-
-            <div className="max-h-96 overflow-y-auto p-4 space-y-6">
-              {/* تنبيه للمدراء */}
-              {user.role === 'admin' && (
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-900/30 p-4 rounded-lg text-yellow-800 dark:text-yellow-300 mb-4">
-                  <div className="flex items-center gap-2 mb-1 font-medium">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                      />
-                    </svg>
-                    <span>تنبيه: المستخدم ذو دور "مدير"</span>
-                  </div>
-                  <p className="text-sm">
-                    المستخدم بدور "مدير" لديه جميع الصلاحيات في النظام بشكل افتراضي.
-                    يمكنك إضافة صلاحيات محددة إضافية، لكنها لن تؤثر على وصول المدير للنظام.
+          
+          {/* رسالة إذا كان المستخدم مديراً */}
+          {user.role === 'admin' ? (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-900/30 p-4 rounded-lg">
+              <div className="flex items-start">
+                <Shield className="h-5 w-5 mt-0.5 flex-shrink-0 text-yellow-600 dark:text-yellow-400" />
+                <div className="mr-3">
+                  <h3 className="font-medium text-yellow-800 dark:text-yellow-300">تنبيه: المستخدم ذو دور "مدير"</h3>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
+                    المستخدم بدور "مدير" لديه جميع الصلاحيات في النظام بشكل افتراضي. 
+                    لا حاجة لتحديد صلاحيات إضافية.
                   </p>
                 </div>
-              )}
-
-              {Object.entries(permissionsByCategory).map(([category, categoryPermissions]) => (
-                <div key={category}>
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-1.5">
-                    <Lock className="h-4 w-4 text-primary" />
-                    {translateCategory(category)}
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {categoryPermissions.map(permission => (
-                      <div
-                        key={permission.id}
-                        onClick={() => togglePermission(permission.id)}
-                        className={`p-4 rounded-lg cursor-pointer border transition-colors ${
-                          selectedPermissions.includes(permission.id)
-                            ? 'border-primary bg-primary/10 dark:bg-primary/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-primary'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="font-medium">{permission.name}</div>
-                          <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* قائمة الصلاحيات المتاحة */}
+              <div className="space-y-6">
+                {Object.entries(permissionCategories).map(([category, { name, permissions }]) => (
+                  <div key={category} className="border dark:border-gray-700 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 dark:bg-gray-800 p-3 border-b dark:border-gray-700">
+                      <h3 className="font-medium flex items-center">
+                        <Lock className="h-4 w-4 ml-2 text-primary" />
+                        {name}
+                      </h3>
+                    </div>
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {permissions.map(permission => (
+                        <div
+                          key={permission.id}
+                          onClick={() => togglePermission(permission.id)}
+                          className={`p-3 rounded-lg cursor-pointer border ${
                             selectedPermissions.includes(permission.id)
-                              ? 'bg-primary border-primary text-white'
-                              : 'border-gray-300 dark:border-gray-600'
-                          }`}>
-                            {selectedPermissions.includes(permission.id) && (
-                              <Check className="h-3 w-3" />
-                            )}
+                              ? 'bg-primary/10 dark:bg-primary/20 border-primary'
+                              : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`h-5 w-5 mt-0.5 rounded flex-shrink-0 ${
+                              selectedPermissions.includes(permission.id)
+                                ? 'bg-primary text-white'
+                                : 'border border-gray-300 dark:border-gray-600'
+                            }`}>
+                              {selectedPermissions.includes(permission.id) && (
+                                <Check className="h-5 w-5" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-medium">{permission.name}</div>
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                {permission.description}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                        
-                        {permission.description && (
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                            {permission.description}
-                          </p>
-                        )}
-                        
-                        <div className="text-xs font-mono bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1 rounded inline-block mt-2">
-                          {permission.code}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                ))}
+              </div>
+              
+              {/* تلميح للمساعدة */}
+              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-lg">
+                <p className="text-sm text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>الصلاحيات المحددة ستؤثر على ما يمكن للمستخدم رؤيته وفعله في النظام. تأكد من منح الصلاحيات المناسبة لمسؤوليات المستخدم.</span>
+                </p>
+              </div>
+            </>
+          )}
         </div>
-
+        
         <div className="p-5 border-t dark:border-gray-800 flex justify-end gap-3 flex-shrink-0">
           <button
             onClick={onClose}
@@ -258,9 +246,9 @@ export function UserPermissionsDialog({ user, isOpen, onClose, onSuccess }: User
             إلغاء
           </button>
           <button
-            onClick={handleSave}
+            onClick={handleSavePermissions}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 flex items-center gap-2"
-            disabled={isLoading}
+            disabled={isLoading || user.role === 'admin'}
           >
             {isLoading ? (
               <>

@@ -49,7 +49,7 @@ export function Dashboard() {
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   
   // حساب التحية بناءً على الوقت الحالي
-  const hasLetterPermissions = hasPermission('view:letters') || hasPermission('create:letters');
+  const hasLetterPermissions = hasPermission('view:letters');
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -64,29 +64,25 @@ export function Dashboard() {
     }
     
     // تحميل الإشعارات (محاكاة)
-    setNotifications([
-      {
-        id: 1,
-        title: 'تم إنشاء خطاب جديد',
-        description: 'تم إنشاء الخطاب رقم 15/2025 بنجاح',
-        time: '1 دقيقة',
-        read: false,
-        type: 'success'
-      },
-      {
-        id: 2,
-        title: 'تذكير بالمراجعة',
-        description: 'لديك 2 مسودة بحاجة للمراجعة والإكمال',
-        time: '3 ساعات',
-        read: true,
-        type: 'info'
-      }
-    ]);
-  }, []);
+    if (hasPermission('view:letters') || hasPermission('view:tasks') || hasPermission('view:approvals')) {
+      setNotifications([
+        {
+          id: 1,
+          title: 'تذكير بالمراجعة',
+          description: 'لديك مهام بانتظار المراجعة',
+          time: '3 ساعات',
+          read: true,
+          type: 'info'
+        }
+      ]);
+    } else {
+      setNotifications([]);
+    }
+  }, [hasPermission]);
 
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
+  // استعلام إحصائيات الخطابات - فقط إذا كان المستخدم لديه صلاحية عرض الخطابات
+  const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['letters-stats', period, dbUser?.id, selectedBranch],
-    // تفعيل الاستعلام فقط إذا كان المستخدم لديه صلاحيات الخطابات
     enabled: !!dbUser?.id && hasLetterPermissions,
     queryFn: async () => {
       const now = new Date();
@@ -108,7 +104,6 @@ export function Dashboard() {
       
       // فلترة حسب الفرع إذا كان محدداً
       if (selectedBranch) {
-        // تعديل الاستعلام للحصول على المستخدمين في الفرع المحدد
         const { data: branchUsers } = await supabase
           .from('users')
           .select('id')
@@ -119,8 +114,8 @@ export function Dashboard() {
           query = query.in('user_id', userIds);
         }
       } else {
-        // إذا كان المستخدم مديراً، اعرض جميع الخطابات، وإلا اعرض خطابات المستخدم فقط
-        if (dbUser?.role !== 'admin') {
+        // اذا كان المستخدم ليس مديرًا، اعرض خطاباته فقط
+        if (!hasPermission('view:letters:all')) {
           query = query.eq('user_id', dbUser?.id);
         }
       }
@@ -131,7 +126,6 @@ export function Dashboard() {
       let recentQuery = supabase.from('letters').select('*', { count: 'exact', head: true });
       
       if (selectedBranch) {
-        // تعديل الاستعلام للحصول على المستخدمين في الفرع المحدد
         const { data: branchUsers } = await supabase
           .from('users')
           .select('id')
@@ -142,8 +136,8 @@ export function Dashboard() {
           recentQuery = recentQuery.in('user_id', userIds);
         }
       } else {
-        // إذا كان المستخدم مديراً، اعرض جميع الخطابات، وإلا اعرض خطابات المستخدم فقط
-        if (dbUser?.role !== 'admin') {
+        // اذا كان المستخدم ليس مديرًا، اعرض خطاباته فقط
+        if (!hasPermission('view:letters:all')) {
           recentQuery = recentQuery.eq('user_id', dbUser?.id);
         }
       }
@@ -154,7 +148,6 @@ export function Dashboard() {
       let draftQuery = supabase.from('letters').select('*', { count: 'exact', head: true });
       
       if (selectedBranch) {
-        // تعديل الاستعلام للحصول على المستخدمين في الفرع المحدد
         const { data: branchUsers } = await supabase
           .from('users')
           .select('id')
@@ -165,8 +158,8 @@ export function Dashboard() {
           draftQuery = draftQuery.in('user_id', userIds);
         }
       } else {
-        // إذا كان المستخدم مديراً، اعرض جميع الخطابات، وإلا اعرض خطابات المستخدم فقط
-        if (dbUser?.role !== 'admin') {
+        // اذا كان المستخدم ليس مديرًا، اعرض خطاباته فقط
+        if (!hasPermission('view:letters:all')) {
           draftQuery = draftQuery.eq('user_id', dbUser?.id);
         }
       }
@@ -179,14 +172,12 @@ export function Dashboard() {
         recent: recent ?? 0,
         draft: draft ?? 0
       };
-    },
-    refetchInterval: 30000 // إعادة تحميل البيانات كل 30 ثانية
+    }
   });
 
-  // آخر الخطابات
-  const { data: recentLetters, isLoading: lettersLoading, refetch: refetchLetters } = useQuery({
+  // استعلام آخر الخطابات - فقط إذا كان المستخدم لديه صلاحية عرض الخطابات
+  const { data: recentLetters, isLoading: lettersLoading } = useQuery({
     queryKey: ['recent-letters', dbUser?.id, selectedBranch],
-    // تفعيل الاستعلام فقط إذا كان المستخدم لديه صلاحيات الخطابات
     enabled: !!dbUser?.id && hasLetterPermissions,
     queryFn: async () => {
       let query = supabase
@@ -205,7 +196,6 @@ export function Dashboard() {
         `);
         
       if (selectedBranch) {
-        // تعديل الاستعلام للحصول على المستخدمين في الفرع المحدد
         const { data: branchUsers } = await supabase
           .from('users')
           .select('id')
@@ -216,8 +206,8 @@ export function Dashboard() {
           query = query.in('user_id', userIds);
         }
       } else {
-        // إذا كان المستخدم مديراً، اعرض جميع الخطابات، وإلا اعرض خطابات المستخدم فقط
-        if (dbUser?.role !== 'admin') {
+        // اذا كان المستخدم ليس مديرًا، اعرض خطاباته فقط
+        if (!hasPermission('view:letters:all')) {
           query = query.eq('user_id', dbUser?.id);
         }
       }
@@ -228,52 +218,30 @@ export function Dashboard() {
 
       if (error) throw error;
       return data || [];
-    },
-    refetchInterval: 30000 // إعادة تحميل البيانات كل 30 ثانية
+    }
   });
   
-  // تحديث البيانات عند تغيير الفرع
-  useEffect(() => {
-    if (selectedBranch !== null) {
-      refetchStats();
-      refetchLetters();
-    }
-  }, [selectedBranch, refetchStats, refetchLetters]);
-  
-  // حساب الإحصائيات للرسم البياني (محاكاة)
-  const chartData = {
-    labels: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'],
-    datasets: [65, 32, 45, 78, 52, 60]
-  };
+  // تحديد إذا كان المستخدم ليس لديه أي صلاحيات على الإطلاق
+  const hasNoPermissions = useMemo(() => {
+    if (!dbUser) return true;
+    
+    // فحص كافة الصلاحيات الرئيسية
+    const mainPermissions = [
+      'view:letters', 
+      'create:letters', 
+      'view:approvals', 
+      'view:approvals:own',
+      'view:tasks', 
+      'view:tasks:assigned', 
+      'view:tasks:own'
+    ];
+    
+    // فحص إذا كان المستخدم ليس لديه أي من هذه الصلاحيات
+    return !mainPermissions.some(p => hasPermission(p));
+  }, [dbUser, hasPermission]);
 
-  // قائمة المهام والتذكيرات (محاكاة)
-  const tasks = [
-    { id: 1, title: 'مراجعة مسودات الخطابات', status: 'pending', dueDate: '2025-06-15' },
-    { id: 2, title: 'تحديث قوالب الخطابات', status: 'completed', dueDate: '2025-06-10' },
-    { id: 3, title: 'إضافة توقيع إلكتروني', status: 'pending', dueDate: '2025-06-20' }
-  ];
-
-  // إذا كان المستخدم لا يملك أي صلاحية للخطابات، نعرض لوحة تحكم مبسطة
-  const hasNoPermissions = !hasPermission('view:letters') && 
-                          !hasPermission('create:letters') && 
-                          !hasPermission('view:approvals') && 
-                          !hasPermission('view:approvals:own') &&
-                          !hasPermission('view:tasks') && 
-                          !hasPermission('view:tasks:assigned') && 
-                          !hasPermission('view:tasks:own');
-
-  if (statsLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-        <div className="flex justify-center items-center h-96">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary"></div>
-        </div>
-      </div>
-    );
-  }
-
+  // لوحة تحكم للمستخدم بدون صلاحيات
   if (hasNoPermissions) {
-    // لوحة تحكم للمستخدم بدون صلاحيات
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
         <motion.div 
@@ -360,7 +328,7 @@ export function Dashboard() {
           </div>
         </div>
         
-        {/* بطاقة إضافية توضيحية */}
+        {/* بطاقة توضيحية */}
         <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-lg max-w-4xl mx-auto">
           <div className="flex items-start gap-2">
             <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
@@ -448,8 +416,8 @@ export function Dashboard() {
         </motion.div>
       )}
 
-      {/* Stats Cards */}
-      <RestrictedComponent permissions={['view:letters', 'create:letters']}>
+      {/* بطاقات الإحصائيات - تظهر فقط إذا كانت لديه صلاحية عرض الخطابات */}
+      <RestrictedComponent permissions={['view:letters']}>
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -548,6 +516,7 @@ export function Dashboard() {
           </div>
           
           <div className="p-5 space-y-4">
+            {/* إنشاء خطاب جديد - يظهر فقط إذا كانت لديه صلاحية create:letters */}
             <RestrictedComponent permissions={['create:letters']}>
               <button
                 onClick={() => navigate('/admin/letters/new')}
@@ -563,7 +532,8 @@ export function Dashboard() {
               </button>
             </RestrictedComponent>
             
-            {!hasPermission('create:letters') && hasPermission('view:letters') && (
+            {/* رسالة عدم وجود صلاحية إنشاء خطاب - تظهر فقط للمستخدمين الذين لديهم صلاحية عرض وليس إنشاء */}
+            {hasPermission('view:letters') && !hasPermission('create:letters') && (
               <div className="w-full p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30">
                 <div className="flex gap-4">
                   <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center ml-4 flex-shrink-0">
@@ -577,6 +547,7 @@ export function Dashboard() {
               </div>
             )}
             
+            {/* إدارة الخطابات - تظهر فقط إذا كانت لديه صلاحية view:letters */}
             <RestrictedComponent permissions={['view:letters']}>
               <button
                 onClick={() => navigate('/admin/letters')}
@@ -592,6 +563,7 @@ export function Dashboard() {
               </button>
             </RestrictedComponent>
             
+            {/* إدارة المهام - تظهر فقط إذا كانت لديه صلاحيات المهام */}
             <RestrictedComponent permissions={['view:tasks', 'view:tasks:assigned', 'view:tasks:own']}>
               <button
                 onClick={() => navigate('/admin/tasks')}
@@ -607,6 +579,7 @@ export function Dashboard() {
               </button>
             </RestrictedComponent>
             
+            {/* إدارة الفروع - تظهر فقط للمستخدمين الذين لديهم صلاحية view:branches */}
             <RestrictedComponent permissions={['view:branches']}>
               <button
                 onClick={() => navigate('/admin/branches')}
@@ -624,8 +597,8 @@ export function Dashboard() {
           </div>
         </motion.div>
         
-        {/* Activity Chart */}
-        <RestrictedComponent permissions={['view:letters', 'create:letters']}>
+        {/* Activity Chart - يظهر فقط للمستخدمين الذين لديهم صلاحية عرض الخطابات */}
+        <RestrictedComponent permissions={['view:letters']}>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -663,8 +636,8 @@ export function Dashboard() {
                   <span>0</span>
                 </div>
                 
-                {/* Chart bars */}
-                {chartData.datasets.map((value, index) => (
+                {/* Chart bars - محاكاة */}
+                {[65, 32, 45, 78, 52, 60].map((value, index) => (
                   <div key={index} className="flex-1 flex flex-col items-center">
                     <div className="h-full w-full flex items-end justify-center">
                       <div 
@@ -672,7 +645,9 @@ export function Dashboard() {
                         style={{ height: `${(value / 100) * 100}%` }}
                       ></div>
                     </div>
-                    <span className="mt-2 text-xs text-gray-600 dark:text-gray-400">{chartData.labels[index]}</span>
+                    <span className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                      {['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'][index]}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -698,12 +673,78 @@ export function Dashboard() {
             </div>
           </motion.div>
         </RestrictedComponent>
+        
+        {/* لوحة معلومات للمستخدمين بدون صلاحيات الخطابات */}
+        {!hasPermission('view:letters') && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm lg:col-span-2 overflow-hidden"
+          >
+            <div className="p-5 border-b dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+                <Info className="h-5 w-5 ml-2 text-blue-500" />
+                معلومات النظام
+              </h2>
+            </div>
+            
+            <div className="p-6">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold mb-2 flex items-center gap-2 text-blue-800 dark:text-blue-300">
+                  <Shield className="h-5 w-5" />
+                  صلاحيات محدودة
+                </h3>
+                <p className="text-blue-700 dark:text-blue-400">
+                  لا تمتلك حالياً صلاحيات الوصول لنظام الخطابات. إذا كنت تحتاج للوصول إلى هذا النظام،
+                  يرجى التواصل مع مدير النظام لمنحك الصلاحيات المطلوبة.
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <h4 className="font-medium mb-2">صلاحياتك الحالية:</h4>
+                  <ul className="text-sm space-y-1 list-disc list-inside">
+                    {hasPermission('view:tasks') && <li>عرض المهام</li>}
+                    {hasPermission('create:tasks') && <li>إنشاء المهام</li>}
+                    {hasPermission('view:approvals') && <li>عرض طلبات الموافقة</li>}
+                    {/* يمكن إضافة المزيد من الصلاحيات هنا */}
+                  </ul>
+                  {!hasPermission('view:tasks') && !hasPermission('create:tasks') && 
+                   !hasPermission('view:approvals') && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                      لم يتم تعيين أي صلاحيات لك بعد
+                    </p>
+                  )}
+                </div>
+                
+                <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <h4 className="font-medium mb-2">الإعدادات المتاحة لك:</h4>
+                  <ul className="text-sm space-y-1 list-disc list-inside">
+                    <li>تعديل المعلومات الشخصية</li>
+                    <li>تغيير كلمة المرور</li>
+                    <li>إعدادات المظهر والخصوصية</li>
+                  </ul>
+                </div>
+              </div>
+              
+              <div className="flex justify-center">
+                <Link 
+                  to="/admin/settings"
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  الذهاب إلى الإعدادات
+                </Link>
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
 
-      {/* Recent Letters and Tasks */}
+      {/* Recent Letters and Tasks - يظهر فقط للمستخدمين الذين لديهم صلاحيات */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Recent Letters */}
-        <RestrictedComponent permissions={['view:letters', 'create:letters']}>
+        {/* Recent Letters - يظهر فقط للمستخدمين الذين لديهم صلاحية عرض الخطابات */}
+        <RestrictedComponent permissions={['view:letters']}>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -812,12 +853,12 @@ export function Dashboard() {
           </motion.div>
         </RestrictedComponent>
         
-        {/* Tasks & Reminders */}
+        {/* Tasks & Reminders - يظهر لكل المستخدمين */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.5 }}
-          className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden ${!hasLetterPermissions ? 'lg:col-span-3' : ''}`}
+          className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden ${!hasPermission('view:letters') ? 'lg:col-span-3' : ''}`}
         >
           <div className="p-5 border-b dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
@@ -833,48 +874,50 @@ export function Dashboard() {
           
           <div className="p-5">
             <div className="space-y-3">
-              {tasks.map(task => (
-                <div key={task.id} className={`p-4 rounded-lg border ${
-                  task.status === 'completed' 
-                    ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20' 
-                    : 'border-primary/20 bg-primary/5'
-                }`}>
+              {/* محاكاة للمهام - يمكن استبدالها بمهام حقيقية لاحقاً */}
+              <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
+                <div className="flex items-center">
+                  <div className="h-5 w-5 rounded-full border-2 border-primary flex-shrink-0"></div>
+                  
+                  <div className="flex-1 mr-3 min-w-0">
+                    <p className="font-medium text-gray-800 dark:text-white">
+                      مراجعة الإعدادات الشخصية
+                    </p>
+                    
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      تاريخ الاستحقاق: {new Date().toLocaleDateString()}
+                    </p>
+                  </div>
+                  
+                  <button className="p-1 text-primary hover:text-primary/80">
+                    <CheckCircle className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+              
+              {hasPermission('view:tasks') && (
+                <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
                   <div className="flex items-center">
-                    <div className={`h-5 w-5 rounded-full flex items-center justify-center ${
-                      task.status === 'completed' 
-                        ? 'bg-green-500 text-white' 
-                        : 'border-2 border-primary'
-                    }`}>
-                      {task.status === 'completed' && (
-                        <CheckCircle className="h-4 w-4" />
-                      )}
+                    <div className="h-5 w-5 rounded-full flex items-center justify-center bg-green-500 text-white flex-shrink-0">
+                      <CheckCircle className="h-4 w-4" />
                     </div>
                     
                     <div className="flex-1 mr-3 min-w-0">
-                      <p className={`font-medium ${
-                        task.status === 'completed' 
-                          ? 'text-gray-500 dark:text-gray-400 line-through' 
-                          : 'text-gray-800 dark:text-white'
-                      }`}>
-                        {task.title}
+                      <p className="font-medium text-gray-500 dark:text-gray-400 line-through">
+                        تحديث البيانات الشخصية
                       </p>
                       
                       <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        تاريخ الاستحقاق: {new Date(task.dueDate).toLocaleDateString()}
+                        تم الإنجاز: {new Date(Date.now() - 86400000).toLocaleDateString()}
                       </p>
                     </div>
-                    
-                    {task.status !== 'completed' && (
-                      <button className="p-1 text-primary hover:text-primary/80">
-                        <CheckCircle className="h-5 w-5" />
-                      </button>
-                    )}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
             
-            {tasks.length === 0 && (
+            {/* رسالة إذا لم تكن هناك مهام */}
+            {!hasPermission('view:tasks') && (
               <div className="text-center py-8">
                 <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-3" />
                 <p className="font-medium text-gray-800 dark:text-white">لا توجد مهام حالية</p>
@@ -882,6 +925,7 @@ export function Dashboard() {
               </div>
             )}
             
+            {/* زر إضافة مهمة جديدة - يظهر فقط إذا كان لديه الصلاحية */}
             <RestrictedComponent permissions={['create:tasks', 'create:tasks:own']}>
               <div className="mt-4 pt-4 border-t dark:border-gray-700">
                 <button 
@@ -894,7 +938,7 @@ export function Dashboard() {
             </RestrictedComponent>
           </div>
           
-          {/* Upcoming Events */}
+          {/* Upcoming Events - محاكاة */}
           <div className="border-t dark:border-gray-700 p-5">
             <h3 className="font-medium text-gray-800 dark:text-white flex items-center mb-4">
               <Calendar className="h-4 w-4 ml-2 text-primary" />
@@ -908,7 +952,7 @@ export function Dashboard() {
                   <span className="text-xs">يونيو</span>
                 </div>
                 <div className="mr-3">
-                  <p className="font-medium text-gray-800 dark:text-white">اجتماع مراجعة القوالب</p>
+                  <p className="font-medium text-gray-800 dark:text-white">مراجعة الإعدادات</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">10:00 صباحاً - 11:30 صباحاً</p>
                 </div>
               </div>
@@ -968,11 +1012,32 @@ export function Dashboard() {
           </div>
         </div>
       </motion.div>
+      
+      {/* بطاقة توضيحية - تظهر فقط للمستخدمين الذين ليس لديهم بعض الصلاحيات */}
+      {(!hasPermission('create:letters') || !hasPermission('view:letters')) && (
+        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-lg max-w-4xl mx-auto">
+          <div className="flex items-start gap-2">
+            <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-1">معلومات حول الصلاحيات</h3>
+              <p className="text-blue-700 dark:text-blue-400">
+                يعتمد النظام على صلاحيات المستخدم لتحديد الأقسام والميزات المتاحة. 
+                {!hasPermission('view:letters') ? (
+                  <span> لا تملك حالياً صلاحيات الوصول إلى نظام الخطابات. </span>
+                ) : !hasPermission('create:letters') ? (
+                  <span> تملك صلاحية عرض الخطابات فقط ولا يمكنك إنشاء خطابات جديدة. </span>
+                ) : ''}
+                للحصول على مزيد من الصلاحيات، يرجى التواصل مع مدير النظام.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// أيقونات إضافية
+// أيقونة دائرة المستخدم
 function UserCircle(props: any) {
   return (
     <svg 

@@ -58,6 +58,7 @@ export function AppRoutes() {
             <PermissionRoute 
               permissions={['create:letters']} 
               fallbackComponent={UnauthorizedLettersAccess}
+              redirectTo='/admin/letters'
             >
               <LetterEditor />
             </PermissionRoute>
@@ -66,6 +67,7 @@ export function AppRoutes() {
             <PermissionRoute 
               permissions={['edit:letters', 'edit:letters:own']} 
               fallbackComponent={UnauthorizedLettersAccess}
+              redirectTo='/admin/letters'
             >
               <EditLetter />
             </PermissionRoute>
@@ -74,19 +76,26 @@ export function AppRoutes() {
             <PermissionRoute 
               permissions={['view:letters']} 
               fallbackComponent={UnauthorizedLettersAccess}
+              redirectTo='/admin'
             >
               <ViewLetter />
             </PermissionRoute>
           } />
           
           <Route path="users" element={
-            <PermissionRoute permissions={['view:users']}>
+            <PermissionRoute 
+              permissions={['view:users']}
+              redirectTo='/admin'
+            >
               <Users />
             </PermissionRoute>
           } />
           
           <Route path="branches" element={
-            <PermissionRoute permissions={['view:branches']}>
+            <PermissionRoute 
+              permissions={['view:branches']}
+              redirectTo='/admin'
+            >
               <Branches />
             </PermissionRoute>
           } />
@@ -94,36 +103,51 @@ export function AppRoutes() {
           <Route path="settings" element={<Settings />} />
           
           <Route path="audit-logs" element={
-            <PermissionRoute permissions={['view:audit_logs']}>
+            <PermissionRoute 
+              permissions={['view:audit_logs']}
+              redirectTo='/admin'
+            >
               <AuditLogs />
             </PermissionRoute>
           } />
           
           <Route path="approvals" element={
-            <PermissionRoute permissions={['view:approvals', 'view:approvals:own']}>
+            <PermissionRoute 
+              permissions={['view:approvals', 'view:approvals:own']}
+              redirectTo='/admin'
+            >
               <Approvals />
             </PermissionRoute>
           } />
           
           {/* Rutas del sistema de tareas */}
           <Route path="tasks" element={
-            <PermissionRoute permissions={['view:tasks', 'view:tasks:assigned', 'view:tasks:own']}>
+            <PermissionRoute 
+              permissions={['view:tasks', 'view:tasks:assigned', 'view:tasks:own']}
+              redirectTo='/admin'
+            >
               <TasksList />
             </PermissionRoute>
           } />
           <Route path="tasks/new" element={
-            <PermissionRoute permissions={['create:tasks', 'create:tasks:own']}>
+            <PermissionRoute 
+              permissions={['create:tasks', 'create:tasks:own']}
+              redirectTo='/admin/tasks'
+            >
               <NewTask />
             </PermissionRoute>
           } />
           <Route path="tasks/:id" element={
-            <PermissionRoute permissions={['view:tasks', 'view:tasks:assigned', 'view:tasks:own']}>
+            <PermissionRoute 
+              permissions={['view:tasks', 'view:tasks:assigned', 'view:tasks:own']}
+              redirectTo='/admin'
+            >
               <TaskDetails />
             </PermissionRoute>
           } />
         </Route>
         
-        <Route path="/" element={<Navigate to="/login\" replace />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/verify/:code" element={<VerifyLetter />} />
       </Routes>
     </AuthProvider>

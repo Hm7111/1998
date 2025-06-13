@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { ReactNode, useEffect } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { ShieldAlert } from 'lucide-react';
 
@@ -20,6 +20,16 @@ interface PermissionRouteProps {
  */
 export function PermissionRoute({ permissions, children, redirectTo = '/admin', fallbackComponent }: PermissionRouteProps) {
   const { hasAnyPermission, loading, user } = useAuth();
+  const navigate = useNavigate();
+  
+  // تحقق من الصلاحيات عند تحميل المكون
+  useEffect(() => {
+    if (!loading && user) {
+      if (!hasAnyPermission(permissions)) {
+        console.warn('User does not have required permissions:', permissions);
+      }
+    }
+  }, [hasAnyPermission, loading, permissions, user]);
   
   if (loading) {
     return (
@@ -29,19 +39,19 @@ export function PermissionRoute({ permissions, children, redirectTo = '/admin', 
     );
   }
   
-  // Si el usuario no está autenticado, redirigir a login
+  // إذا كان المستخدم غير مسجل، توجيه إلى صفحة تسجيل الدخول
   if (!user) {
     return <Navigate to="/login" replace />;
   }
   
-  // Verificar si el usuario tiene al menos uno de los permisos requeridos
+  // التحقق من الصلاحيات
   if (!hasAnyPermission(permissions)) {
-    // Si se proporciona un componente personalizado, mostrarlo
+    // إذا تم توفير مكون بديل، عرضه
     if (fallbackComponent) {
       return <>{fallbackComponent}</>;
     }
     
-    // Mostrar mensaje de error con opción de redirigir
+    // عرض رسالة خطأ مع خيار العودة
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
         <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 mt-8 text-center">
@@ -57,7 +67,7 @@ export function PermissionRoute({ permissions, children, redirectTo = '/admin', 
           </p>
           <div className="flex justify-center space-x-4">
             <button 
-              onClick={() => window.location.href = redirectTo}
+              onClick={() => navigate(redirectTo)}
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
             >
               العودة إلى الصفحة الرئيسية
@@ -68,6 +78,6 @@ export function PermissionRoute({ permissions, children, redirectTo = '/admin', 
     );
   }
   
-  // El usuario tiene permiso, mostrar el contenido
+  // المستخدم لديه صلاحية، عرض المحتوى
   return <>{children}</>;
 }

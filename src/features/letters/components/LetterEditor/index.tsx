@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ArrowRight, Save, FileText, Clock, Calendar, PlusCircle, Settings, 
   Eye, Download, Printer, CheckCircle, Share2, Copy, Sliders,
-  BookTemplate as FileTemplate, ListPlus, RefreshCw, QrCode
+  BookTemplate as FileTemplate, ListPlus, RefreshCw, QrCode,
+  AlertCircle, Shield
 } from 'lucide-react';
 import QRCode from 'qrcode.react';
 import moment from 'moment-hijri';
@@ -67,6 +68,7 @@ export function LetterEditor() {
   });
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [templateLoadError, setTemplateLoadError] = useState(false);
+  const [permissionChecked, setPermissionChecked] = useState(false);
 
   // Editor state
   const [editorState, setEditorState] = useState({
@@ -78,17 +80,29 @@ export function LetterEditor() {
     editorType: 'tinymce',
   });
 
-  // Load templates and setup autosave
+  // التحقق من الصلاحيات بمجرد تحميل المكون
   useEffect(() => {
     // التحقق من صلاحيات المستخدم
+    if (user && dbUser) {
+      if (!hasPermission('create:letters')) {
+        toast({
+          title: 'غير مصرح بالوصول',
+          description: 'ليس لديك صلاحية لإنشاء خطابات',
+          type: 'error'
+        });
+        navigate('/admin/letters');
+        return;
+      }
+      setPermissionChecked(true);
+    }
+  }, [user, dbUser, hasPermission, navigate, toast]);
+
+  // Load templates and setup autosave only if has permission
+  useEffect(() => {
+    if (!permissionChecked) return;
+    
     if (!hasPermission('create:letters')) {
-      toast({
-        title: 'خطأ',
-        description: 'ليس لديك صلاحية لإنشاء خطابات',
-        type: 'error'
-      });
-      navigate('/admin');
-      return;
+      return; // التوقف إذا لم يكن هناك صلاحية
     }
 
     loadTemplates();
@@ -107,15 +121,52 @@ export function LetterEditor() {
     return () => {
       if (autosaveInterval) clearInterval(autosaveInterval);
     };
-  }, [templateId, content, dbUser?.id, autosaveEnabled, hasPermission, navigate]);
+  }, [templateId, content, dbUser?.id, autosaveEnabled, hasPermission, permissionChecked]);
 
   useEffect(() => {
+    if (!permissionChecked) return;
+    
     if (templateId) {
       loadNextNumber();
       // Load selected template details
       loadSelectedTemplate();
     }
-  }, [templateId]);
+  }, [templateId, permissionChecked]);
+
+  // إذا لم تكن لديه الصلاحية، عرض رسالة مناسبة
+  if (dbUser && !hasPermission('create:letters')) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 p-8 rounded-lg shadow-sm text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full mb-6">
+            <Shield className="h-8 w-8 text-red-600 dark:text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-red-700 dark:text-red-300 mb-4">غير مصرح بالوصول</h2>
+          <p className="text-lg text-red-600 dark:text-red-400 mb-6 max-w-md mx-auto">
+            ليس لديك الصلاحيات اللازمة لإنشاء خطابات جديدة.
+          </p>
+          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+            للحصول على صلاحية إنشاء الخطابات، يرجى التواصل مع مدير النظام.
+          </p>
+          <button
+            onClick={() => navigate('/admin/letters')}
+            className="px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg"
+          >
+            العودة إلى قائمة الخطابات
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // إظهار شاشة تحميل حتى اكتمال فحص الصلاحيات
+  if (!permissionChecked) {
+    return (
+      <div className="p-6 flex justify-center items-center h-[70vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-t-primary border-b-transparent border-l-primary border-r-transparent"></div>
+      </div>
+    );
+  }
 
   async function loadTemplates() {
     setLoadingTemplates(true);
@@ -227,7 +278,7 @@ export function LetterEditor() {
     // التحقق من صلاحيات المستخدم
     if (!hasPermission('create:letters')) {
       toast({
-        title: 'خطأ',
+        title: 'غير مصرح بالوصول',
         description: 'ليس لديك صلاحية لإنشاء خطابات',
         type: 'error'
       });

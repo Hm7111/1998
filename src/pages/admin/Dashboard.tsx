@@ -26,7 +26,9 @@ import {
   Building as BuildingIcon,
   ArrowRight,
   Shield,
-  Settings
+  Settings,
+  Info,
+  AlertCircle
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
@@ -355,6 +357,20 @@ export function Dashboard() {
               </div>
             </div>
           </div>
+          
+          {/* بطاقة إضافية توضيحية */}
+          <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-amber-800 dark:text-amber-300 mb-1">لماذا لا يمكنني رؤية بعض الأقسام؟</h3>
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  يعتمد النظام على صلاحيات المستخدم لتحديد الأقسام والميزات المتاحة. حالياً، لا توجد لديك صلاحيات للوصول إلى أقسام النظام المختلفة.
+                  للحصول على الوصول، يرجى التواصل مع مدير النظام.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -411,6 +427,25 @@ export function Dashboard() {
           </div>
         </div>
       </motion.div>
+
+      {/* رسالة تنبيه للمستخدمين الذين يمكنهم عرض الخطابات ولا يمكنهم إنشاؤها */}
+      {hasPermission('view:letters') && !hasPermission('create:letters') && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-lg text-amber-800 dark:text-amber-300 flex items-start gap-3"
+        >
+          <Info className="h-5 w-5 mt-0.5 flex-shrink-0" />
+          <div>
+            <h3 className="font-medium mb-1">تنبيه: صلاحيات محدودة</h3>
+            <p>
+              لديك صلاحيات لعرض الخطابات فقط. ليس لديك صلاحية إنشاء خطابات جديدة. 
+              إذا كنت تحتاج إلى إنشاء خطابات، يرجى التواصل مع مدير النظام للحصول على الصلاحيات اللازمة.
+            </p>
+          </div>
+        </motion.div>
+      )}
 
       {/* Stats Cards */}
       <motion.div 
@@ -548,6 +583,20 @@ export function Dashboard() {
                   <p className="text-sm text-gray-600 dark:text-gray-400">إنشاء خطاب جديد من القوالب المتاحة</p>
                 </div>
               </button>
+            )}
+            
+            {!hasPermission('create:letters') && hasPermission('view:letters') && (
+              <div className="w-full p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30">
+                <div className="flex gap-4">
+                  <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center ml-4 flex-shrink-0">
+                    <Info className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div className="flex-1 text-right">
+                    <h3 className="font-medium text-amber-800 dark:text-amber-300">صلاحيات محدودة</h3>
+                    <p className="text-sm text-amber-700 dark:text-amber-400">ليس لديك صلاحية إنشاء خطابات جديدة. يرجى التواصل مع مدير النظام للحصول على الصلاحية.</p>
+                  </div>
+                </div>
+              </div>
             )}
             
             {hasPermission('view:letters') && (
@@ -791,13 +840,19 @@ export function Dashboard() {
                   <FileText className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-600 mb-3" />
                   <p className="text-gray-500 dark:text-gray-400 font-medium">لا توجد خطابات حتى الآن</p>
                   <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">ابدأ بإنشاء خطاب جديد</p>
-                  <button 
-                    onClick={() => navigate('/admin/letters/new')}
-                    className="px-4 py-2 bg-primary text-white rounded-lg text-sm flex items-center gap-2 mx-auto"
-                  >
-                    <PlusCircle className="h-4 w-4" />
-                    خطاب جديد
-                  </button>
+                  {hasPermission('create:letters') ? (
+                    <button 
+                      onClick={() => navigate('/admin/letters/new')}
+                      className="px-4 py-2 bg-primary text-white rounded-lg text-sm flex items-center gap-2 mx-auto"
+                    >
+                      <PlusCircle className="h-4 w-4" />
+                      خطاب جديد
+                    </button>
+                  ) : (
+                    <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg text-sm mx-auto max-w-sm">
+                      ليس لديك صلاحية لإنشاء خطابات جديدة. تواصل مع مدير النظام للحصول على الصلاحيات اللازمة.
+                    </div>
+                  )}
                 </div>
               )}
             </div>

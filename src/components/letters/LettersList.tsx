@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
-  File, 
+  FileText, 
   Search, 
   Trash, 
   Edit, 
@@ -12,9 +12,15 @@ import {
   Filter, 
   SortAsc, 
   SortDesc,
-  FileText,
+  FileCheck,
   Calendar,
-  Building
+  Building,
+  User,
+  Flag,
+  Clock, 
+  AlertCircle,
+  Info,
+  Shield
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -220,7 +226,21 @@ export function LettersList({}: LetterListProps) {
 
   return (
     <div>
-      {/* تأكيد الحذف */}
+      {/* رسالة تنبيه للمستخدمين الذين ليس لديهم صلاحية إنشاء الخطابات */}
+      {hasPermission('view:letters') && !hasPermission('create:letters') && (
+        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-lg text-amber-800 dark:text-amber-300 flex items-start gap-3">
+          <Info className="h-5 w-5 mt-0.5 flex-shrink-0" />
+          <div>
+            <h3 className="font-medium mb-1">تنبيه: صلاحيات محدودة</h3>
+            <p className="text-sm">
+              لديك صلاحيات لعرض الخطابات فقط. ليس لديك صلاحية إنشاء خطابات جديدة. 
+              إذا كنت تحتاج إلى إنشاء خطابات، يرجى التواصل مع مدير النظام للحصول على الصلاحيات اللازمة.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* نافذة تأكيد الحذف */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6 shadow-xl">
@@ -245,7 +265,7 @@ export function LettersList({}: LetterListProps) {
       )}
 
       {/* رأس الصفحة */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold mb-1">إدارة الخطابات</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm">
@@ -268,7 +288,7 @@ export function LettersList({}: LetterListProps) {
           
           <div className="relative">
             <button
-              className="px-3 py-2 border dark:border-gray-700 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-900"
+              className="px-3 py-2 border dark:border-gray-700 rounded-lg flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800"
               onClick={(e) => {
                 const dropdown = e.currentTarget.nextElementSibling;
                 dropdown?.classList.toggle('hidden');
@@ -395,7 +415,7 @@ export function LettersList({}: LetterListProps) {
               'لا توجد خطابات مطابقة لمعايير البحث الحالية' : 
               'لم تقم بإنشاء أي خطابات بعد'}
           </p>
-          {hasPermission('create:letters') && (
+          {hasPermission('create:letters') ? (
             <button
               onClick={() => navigate('new')}
               className="bg-primary text-white px-4 py-2 rounded-lg inline-flex items-center gap-2"
@@ -403,6 +423,14 @@ export function LettersList({}: LetterListProps) {
               <Plus className="h-4 w-4" />
               <span>إنشاء خطاب جديد</span>
             </button>
+          ) : (
+            <div className="p-4 mt-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-lg inline-block text-blue-800 dark:text-blue-300 max-w-md">
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-blue-500" />
+                <span className="font-medium">ملاحظة:</span>
+              </div>
+              <p className="mt-2 text-sm">ليس لديك صلاحية لإنشاء خطابات جديدة. إذا كنت تحتاج إلى إنشاء خطابات، يرجى التواصل مع مدير النظام.</p>
+            </div>
           )}
         </div>
       ) : (

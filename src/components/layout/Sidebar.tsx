@@ -1,4 +1,6 @@
-import { FileText, Home, Settings, Users, History, Building, Shield, Key, ClipboardCheck, FileCheck, ListTodo } from 'lucide-react'
+import { 
+  FileText, Home, Settings, Users, History, Building, Shield, Key, ClipboardCheck, FileCheck, ListTodo 
+} from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
@@ -31,7 +33,7 @@ export function Sidebar() {
       },
     ];
     
-    // إضافة قسم الخطابات فقط إذا كان المستخدم يملك الصلاحية
+    // إضافة قسم الخطابات فقط إذا كان المستخدم يملك أي من صلاحيات الخطابات (عرض أو إنشاء)
     if (hasPermission('view:letters') || hasPermission('create:letters')) {
       items.push({ 
         name: 'الخطابات', 
@@ -42,7 +44,7 @@ export function Sidebar() {
       });
     }
     
-    // إضافة قسم الموافقات فقط إذا كان المستخدم يملك الصلاحية
+    // إضافة قسم الموافقات فقط إذا كان المستخدم يملك صلاحية
     if (hasPermission('view:approvals') || hasPermission('view:approvals:own')) {
       items.push({
         name: 'الموافقات',
@@ -53,7 +55,7 @@ export function Sidebar() {
       });
     }
     
-    // إضافة قسم المهام فقط إذا كان المستخدم يملك الصلاحية
+    // إضافة قسم المهام فقط إذا كان المستخدم يملك صلاحية
     if (hasPermission('view:tasks') || hasPermission('view:tasks:assigned') || hasPermission('view:tasks:own')) {
       items.push({
         name: 'المهام',

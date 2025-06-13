@@ -36,6 +36,7 @@ import { useAuth } from '../../lib/auth';
 import { motion } from 'framer-motion';
 import { BranchSelector } from '../../components/branches/BranchSelector';
 import { useToast } from '../../hooks/useToast';
+import { RestrictedComponent } from '../../components/ui/RestrictedComponent';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -296,7 +297,7 @@ export function Dashboard() {
           </div>
         </motion.div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-4xl mx-auto">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-8 max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full mb-6">
               <Shield className="h-10 w-10 text-red-600 dark:text-red-400" />
@@ -357,18 +358,18 @@ export function Dashboard() {
               </div>
             </div>
           </div>
-          
-          {/* بطاقة إضافية توضيحية */}
-          <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
-              <div>
-                <h3 className="font-medium text-amber-800 dark:text-amber-300 mb-1">لماذا لا يمكنني رؤية بعض الأقسام؟</h3>
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  يعتمد النظام على صلاحيات المستخدم لتحديد الأقسام والميزات المتاحة. حالياً، لا توجد لديك صلاحيات للوصول إلى أقسام النظام المختلفة.
-                  للحصول على الوصول، يرجى التواصل مع مدير النظام.
-                </p>
-              </div>
+        </div>
+        
+        {/* بطاقة إضافية توضيحية */}
+        <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-lg max-w-4xl mx-auto">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-amber-800 dark:text-amber-300 mb-1">لماذا لا يمكنني رؤية بعض الأقسام؟</h3>
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                يعتمد النظام على صلاحيات المستخدم لتحديد الأقسام والميزات المتاحة. حالياً، لا توجد لديك صلاحيات للوصول إلى أقسام النظام المختلفة.
+                للحصول على الوصول، يرجى التواصل مع مدير النظام.
+              </p>
             </div>
           </div>
         </div>
@@ -448,111 +449,87 @@ export function Dashboard() {
       )}
 
       {/* Stats Cards */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.1 }}
-        className={`grid grid-cols-1 ${hasLetterPermissions ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6 mb-8`}
-      >
-        {hasLetterPermissions && (
-          <>
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 opacity-10">
-                <FileText className="h-32 w-32 -mt-6 -mr-6" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">إجمالي الخطابات</h3>
-              <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
-                <span className="text-4xl font-bold">{stats?.total || 0}</span>
-                <span className="text-blue-100">خطاب</span>
-              </div>
-              <div className="mt-4">
-                <button
-                  onClick={() => navigate('/admin/letters')}
-                  className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  <span>عرض الكل</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 opacity-10">
-                <Calendar className="h-32 w-32 -mt-6 -mr-6" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">
-                خطابات {period === 'week' ? 'الأسبوع' : period === 'month' ? 'الشهر' : 'السنة'}
-              </h3>
-              <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
-                <span className="text-4xl font-bold">{stats?.recent || 0}</span>
-                <span className="text-green-100">خطاب</span>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-1">
-                <button
-                  onClick={() => setPeriod('week')}
-                  className={`text-xs ${period === 'week' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
-                >
-                  أسبوع
-                </button>
-                <button
-                  onClick={() => setPeriod('month')}
-                  className={`text-xs ${period === 'month' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
-                >
-                  شهر
-                </button>
-                <button
-                  onClick={() => setPeriod('year')}
-                  className={`text-xs ${period === 'year' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
-                >
-                  سنة
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 opacity-10">
-                <Clock className="h-32 w-32 -mt-6 -mr-6" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">المسودات</h3>
-              <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
-                <span className="text-4xl font-bold">{stats?.draft || 0}</span>
-                <span className="text-amber-100">خطاب</span>
-              </div>
-              <div className="mt-4">
-                <button
-                  onClick={() => navigate('/admin/letters?status=draft')}
-                  className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  <span>عرض المسودات</span>
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* بطاقات إضافية للمستخدمين الذين ليس لديهم صلاحيات الخطابات */}
-        {!hasLetterPermissions && hasPermission('view:tasks') && (
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
+      <RestrictedComponent permissions={['view:letters', 'create:letters']}>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
+        >
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 opacity-10">
-              <Shield className="h-32 w-32 -mt-6 -mr-6" />
+              <FileText className="h-32 w-32 -mt-6 -mr-6" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">المهام</h3>
-            <p className="text-sm text-purple-100 mb-2">
-              يمكنك إدارة المهام المسندة إليك
-            </p>
+            <h3 className="text-lg font-semibold mb-2">إجمالي الخطابات</h3>
+            <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
+              <span className="text-4xl font-bold">{stats?.total || 0}</span>
+              <span className="text-blue-100">خطاب</span>
+            </div>
             <div className="mt-4">
               <button
-                onClick={() => navigate('/admin/tasks')}
+                onClick={() => navigate('/admin/letters')}
                 className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
               >
-                <Settings className="h-3.5 w-3.5" />
-                <span>عرض المهام</span>
+                <FileText className="h-3.5 w-3.5" />
+                <span>عرض الكل</span>
               </button>
             </div>
           </div>
-        )}
-      </motion.div>
+
+          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 opacity-10">
+              <Calendar className="h-32 w-32 -mt-6 -mr-6" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">
+              خطابات {period === 'week' ? 'الأسبوع' : period === 'month' ? 'الشهر' : 'السنة'}
+            </h3>
+            <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
+              <span className="text-4xl font-bold">{stats?.recent || 0}</span>
+              <span className="text-green-100">خطاب</span>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-1">
+              <button
+                onClick={() => setPeriod('week')}
+                className={`text-xs ${period === 'week' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
+              >
+                أسبوع
+              </button>
+              <button
+                onClick={() => setPeriod('month')}
+                className={`text-xs ${period === 'month' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
+              >
+                شهر
+              </button>
+              <button
+                onClick={() => setPeriod('year')}
+                className={`text-xs ${period === 'year' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
+              >
+                سنة
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 opacity-10">
+              <Clock className="h-32 w-32 -mt-6 -mr-6" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">المسودات</h3>
+            <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
+              <span className="text-4xl font-bold">{stats?.draft || 0}</span>
+              <span className="text-amber-100">خطاب</span>
+            </div>
+            <div className="mt-4">
+              <button
+                onClick={() => navigate('/admin/letters?status=draft')}
+                className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                <span>عرض المسودات</span>
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </RestrictedComponent>
 
       {/* Activity and Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -569,8 +546,9 @@ export function Dashboard() {
               إجراءات سريعة
             </h2>
           </div>
+          
           <div className="p-5 space-y-4">
-            {hasPermission('create:letters') && (
+            <RestrictedComponent permissions={['create:letters']}>
               <button
                 onClick={() => navigate('/admin/letters/new')}
                 className="w-full flex items-center p-4 rounded-lg transition-all bg-primary/5 hover:bg-primary/10 border-2 border-primary/10 hover:border-primary/20"
@@ -583,7 +561,7 @@ export function Dashboard() {
                   <p className="text-sm text-gray-600 dark:text-gray-400">إنشاء خطاب جديد من القوالب المتاحة</p>
                 </div>
               </button>
-            )}
+            </RestrictedComponent>
             
             {!hasPermission('create:letters') && hasPermission('view:letters') && (
               <div className="w-full p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30">
@@ -599,7 +577,7 @@ export function Dashboard() {
               </div>
             )}
             
-            {hasPermission('view:letters') && (
+            <RestrictedComponent permissions={['view:letters']}>
               <button
                 onClick={() => navigate('/admin/letters')}
                 className="w-full flex items-center p-4 rounded-lg transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50 border-2 border-gray-100 dark:border-gray-700"
@@ -612,9 +590,9 @@ export function Dashboard() {
                   <p className="text-sm text-gray-600 dark:text-gray-400">عرض وإدارة جميع الخطابات الخاصة بك</p>
                 </div>
               </button>
-            )}
+            </RestrictedComponent>
             
-            {hasPermission('view:tasks') && (
+            <RestrictedComponent permissions={['view:tasks', 'view:tasks:assigned', 'view:tasks:own']}>
               <button
                 onClick={() => navigate('/admin/tasks')}
                 className="w-full flex items-center p-4 rounded-lg transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50 border-2 border-gray-100 dark:border-gray-700"
@@ -627,9 +605,9 @@ export function Dashboard() {
                   <p className="text-sm text-gray-600 dark:text-gray-400">عرض وإدارة المهام المسندة إليك</p>
                 </div>
               </button>
-            )}
+            </RestrictedComponent>
             
-            {dbUser?.role === 'admin' && (
+            <RestrictedComponent permissions={['view:branches']}>
               <button
                 onClick={() => navigate('/admin/branches')}
                 className="w-full flex items-center p-4 rounded-lg transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50 border-2 border-gray-100 dark:border-gray-700"
@@ -642,12 +620,12 @@ export function Dashboard() {
                   <p className="text-sm text-gray-600 dark:text-gray-400">إدارة فروع المنظمة والمستخدمين</p>
                 </div>
               </button>
-            )}
+            </RestrictedComponent>
           </div>
         </motion.div>
         
         {/* Activity Chart */}
-        {hasLetterPermissions ? (
+        <RestrictedComponent permissions={['view:letters', 'create:letters']}>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -719,38 +697,13 @@ export function Dashboard() {
               </div>
             </div>
           </motion.div>
-        ) : (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm lg:col-span-2 overflow-hidden"
-          >
-            <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-                <ActivitySquare className="h-5 w-5 ml-2 text-green-500" />
-                نشاط النظام
-              </h2>
-            </div>
-            
-            <div className="p-5">
-              <div className="flex flex-col items-center justify-center py-8">
-                <Shield className="h-16 w-16 text-gray-300 dark:text-gray-600 mb-4" />
-                <h3 className="text-lg font-medium mb-2">مرحباً بك في نظام إدارة المهام</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-center max-w-md mb-4">
-                  يمكنك الوصول إلى الأقسام المتاحة لك من خلال القائمة الجانبية.
-                  للحصول على صلاحيات إضافية، يرجى التواصل مع مدير النظام.
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
+        </RestrictedComponent>
       </div>
 
       {/* Recent Letters and Tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Recent Letters */}
-        {hasLetterPermissions ? (
+        <RestrictedComponent permissions={['view:letters', 'create:letters']}>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -857,7 +810,7 @@ export function Dashboard() {
               )}
             </div>
           </motion.div>
-        ) : null}
+        </RestrictedComponent>
         
         {/* Tasks & Reminders */}
         <motion.div 
@@ -929,7 +882,7 @@ export function Dashboard() {
               </div>
             )}
             
-            {hasPermission('create:tasks') && (
+            <RestrictedComponent permissions={['create:tasks', 'create:tasks:own']}>
               <div className="mt-4 pt-4 border-t dark:border-gray-700">
                 <button 
                   onClick={() => navigate('/admin/tasks/new')}
@@ -938,7 +891,7 @@ export function Dashboard() {
                   إضافة مهمة جديدة
                 </button>
               </div>
-            )}
+            </RestrictedComponent>
           </div>
           
           {/* Upcoming Events */}
@@ -989,32 +942,30 @@ export function Dashboard() {
             </p>
           </div>
           
-          {hasPermission('view:letters') && (
+          <RestrictedComponent permissions={['view:letters']}>
             <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
               <div className="font-medium text-gray-800 dark:text-white mb-2">النماذج النصية الجاهزة</div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 استخدم النماذج النصية الجاهزة لتسريع كتابة الخطابات المتكررة بنقرة واحدة.
               </p>
             </div>
-          )}
+          </RestrictedComponent>
           
-          {hasPermission('export:letters') && (
+          <RestrictedComponent permissions={['export:letters']}>
             <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
               <div className="font-medium text-gray-800 dark:text-white mb-2">تصدير الخطابات</div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 يمكنك تصدير الخطابات بصيغة PDF عالية الجودة أو طباعتها مباشرة من النظام.
               </p>
             </div>
-          )}
+          </RestrictedComponent>
           
-          {!hasPermission('view:letters') && !hasPermission('export:letters') && (
-            <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
-              <div className="font-medium text-gray-800 dark:text-white mb-2">الإعدادات الشخصية</div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                يمكنك تخصيص إعدادات حسابك من صفحة الإعدادات في القائمة الجانبية.
-              </p>
-            </div>
-          )}
+          <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
+            <div className="font-medium text-gray-800 dark:text-white mb-2">الإعدادات الشخصية</div>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              يمكنك تخصيص إعدادات حسابك من صفحة الإعدادات في القائمة الجانبية.
+            </p>
+          </div>
         </div>
       </motion.div>
     </div>

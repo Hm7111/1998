@@ -1,1071 +1,839 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { 
-  Plus, 
-  FileText, 
-  Calendar,
-  Building as BuildingIcon,
-  ArrowRight,
-  Shield,
-  Info,
-  AlertCircle,
-  Sparkles,
-  FileCheck,
-  User as UserIcon,
-  CheckCircle
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../../lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
-import { motion } from 'framer-motion';
-import { BranchSelector } from '../../components/branches/BranchSelector';
-import { useToast } from '../../hooks/useToast';
-import { RestrictedComponent } from '../../components/ui/RestrictedComponent';
+import { 
+  Clock, 
+  Calendar, 
+  FileText, 
+  CheckCircle, 
+  ClipboardCheck, 
+  AlertTriangle,
+  User,
+  Building,
+  Sun,
+  Cloud,
+  CloudRain,
+  CloudSnow,
+  Wind,
+  Thermometer,
+  Droplets,
+  RefreshCw
+} from 'lucide-react';
+import { Bar, Doughnut, Line } from 'react-chartjs-2';
+import { 
+  Chart as ChartJS, 
+  CategoryScale, 
+  LinearScale, 
+  BarElement, 
+  Title, 
+  Tooltip, 
+  Legend,
+  ArcElement,
+  PointElement,
+  LineElement,
+  Filler
+} from 'chart.js';
+import { useNavigate } from 'react-router-dom';
+
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  PointElement,
+  LineElement,
+  Filler
+);
 
 export function Dashboard() {
-  const navigate = useNavigate();
   const { dbUser, hasPermission } = useAuth();
-  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [weather, setWeather] = useState<any>(null);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [weatherError, setWeatherError] = useState(false);
   
-  const [period, setPeriod] = useState<'week' | 'month' | 'year'>('month');
-  const [greeting, setGreeting] = useState<string>('مرحباً');
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-  
-  // حساب التحية بناءً على الوقت الحالي
-  const hasLetterPermissions = hasPermission('view:letters');
-  const hasTaskPermissions = hasPermission('view:tasks') || hasPermission('view:tasks:assigned') || hasPermission('view:tasks:own');
-
+  // Update current time every second
   useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) {
-      setGreeting('صباح الخير');
-    } else if (hour >= 12 && hour < 17) {
-      setGreeting('مساء الخير');
-    } else if (hour >= 17 && hour < 20) {
-      setGreeting('مساء الخير');
-    } else {
-      setGreeting('مساء الخير');
-    }
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
     
-    // تحميل الإشعارات (محاكاة)
-    if (hasLetterPermissions || hasTaskPermissions || hasPermission('view:approvals')) {
-      setNotifications([
-        {
-          id: 1,
-          title: 'تذكير بالمراجعة',
-          description: 'لديك مهام بانتظار المراجعة',
-          time: '3 ساعات',
-          read: true,
-          type: 'info'
-        }
-      ]);
-    } else {
-      setNotifications([]);
-    }
-  }, [hasPermission]);
-
-  // استعلام إحصائيات الخطابات - فقط إذا كان المستخدم لديه صلاحية عرض الخطابات
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['letters-stats', period, dbUser?.id, selectedBranch],
-    enabled: !!dbUser?.id && hasLetterPermissions,
-    queryFn: async () => {
-      const now = new Date();
-      let startDate = new Date();
-      
-      switch (period) {
-        case 'week':
-          startDate.setDate(now.getDate() - 7);
-          break;
-        case 'month':
-          startDate.setMonth(now.getMonth() - 1);
-          break;
-        case 'year':
-          startDate.setFullYear(now.getFullYear() - 1);
-          break;
-      }
-
-      let query = supabase.from('letters').select('*', { count: 'exact', head: true });
-      
-      // فلترة حسب الفرع إذا كان محدداً
-      if (selectedBranch) {
-        const { data: branchUsers } = await supabase
-          .from('users')
-          .select('id')
-          .eq('branch_id', selectedBranch);
-          
-        if (branchUsers && branchUsers.length > 0) {
-          const userIds = branchUsers.map(user => user.id);
-          query = query.in('user_id', userIds);
-        }
-      } else {
-        // اذا كان المستخدم ليس مديرًا، اعرض خطاباته فقط
-        if (!hasPermission('view:letters:all')) {
-          query = query.eq('user_id', dbUser?.id);
-        }
-      }
-      
-      const { count: total, error: totalError } = await query;
-      if (totalError) throw totalError;
-
-      let recentQuery = supabase.from('letters').select('*', { count: 'exact', head: true });
-      
-      if (selectedBranch) {
-        const { data: branchUsers } = await supabase
-          .from('users')
-          .select('id')
-          .eq('branch_id', selectedBranch);
-          
-        if (branchUsers && branchUsers.length > 0) {
-          const userIds = branchUsers.map(user => user.id);
-          recentQuery = recentQuery.in('user_id', userIds);
-        }
-      } else {
-        // اذا كان المستخدم ليس مديرًا، اعرض خطاباته فقط
-        if (!hasPermission('view:letters:all')) {
-          recentQuery = recentQuery.eq('user_id', dbUser?.id);
-        }
-      }
-      
-      const { count: recent, error: recentError } = await recentQuery.gte('created_at', startDate.toISOString());
-      if (recentError) throw recentError;
-
-      let draftQuery = supabase.from('letters').select('*', { count: 'exact', head: true });
-      
-      if (selectedBranch) {
-        const { data: branchUsers } = await supabase
-          .from('users')
-          .select('id')
-          .eq('branch_id', selectedBranch);
-          
-        if (branchUsers && branchUsers.length > 0) {
-          const userIds = branchUsers.map(user => user.id);
-          draftQuery = draftQuery.in('user_id', userIds);
-        }
-      } else {
-        // اذا كان المستخدم ليس مديرًا، اعرض خطاباته فقط
-        if (!hasPermission('view:letters:all')) {
-          draftQuery = draftQuery.eq('user_id', dbUser?.id);
-        }
-      }
-      
-      const { count: draft, error: draftError } = await draftQuery.eq('status', 'draft');
-      if (draftError) throw draftError;
-
-      return {
-        total: total ?? 0,
-        recent: recent ?? 0,
-        draft: draft ?? 0
-      };
-    }
-  });
-
-  // استعلام آخر الخطابات - فقط إذا كان المستخدم لديه صلاحية عرض الخطابات
-  const { data: recentLetters, isLoading: lettersLoading } = useQuery({
-    queryKey: ['recent-letters', dbUser?.id, selectedBranch],
-    enabled: !!dbUser?.id && hasLetterPermissions,
-    queryFn: async () => {
-      let query = supabase
-        .from('letters')
-        .select(`
-          id,
-          number,
-          year,
-          content,
-          status,
-          created_at,
-          letter_templates (
-            name,
-            image_url
-          )
-        `);
+    return () => clearInterval(timer);
+  }, []);
+  
+  // Fetch weather data
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        setWeatherLoading(true);
+        // Using a mock weather data for demonstration
+        // In production, you would use a real weather API
+        const mockWeather = {
+          location: 'الرياض، المملكة العربية السعودية',
+          temperature: 32,
+          condition: 'مشمس',
+          humidity: 20,
+          windSpeed: 12,
+          forecast: [
+            { day: 'اليوم', temp: 32, condition: 'مشمس' },
+            { day: 'غداً', temp: 33, condition: 'غائم جزئياً' },
+            { day: 'بعد غد', temp: 30, condition: 'غائم' }
+          ]
+        };
         
-      if (selectedBranch) {
-        const { data: branchUsers } = await supabase
-          .from('users')
-          .select('id')
-          .eq('branch_id', selectedBranch);
-          
-        if (branchUsers && branchUsers.length > 0) {
-          const userIds = branchUsers.map(user => user.id);
-          query = query.in('user_id', userIds);
-        }
-      } else {
-        // اذا كان المستخدم ليس مديرًا، اعرض خطاباته فقط
-        if (!hasPermission('view:letters:all')) {
-          query = query.eq('user_id', dbUser?.id);
-        }
+        // Simulate API delay
+        setTimeout(() => {
+          setWeather(mockWeather);
+          setWeatherLoading(false);
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Error fetching weather:', error);
+        setWeatherError(true);
+        setWeatherLoading(false);
       }
+    };
+    
+    fetchWeather();
+  }, []);
+  
+  // Fetch letters statistics
+  const { data: lettersStats = { total: 0, draft: 0, completed: 0 }, isLoading: lettersLoading } = useQuery({
+    queryKey: ['letters-stats', dbUser?.id],
+    queryFn: async () => {
+      if (!dbUser?.id || !hasPermission('view:letters')) return { total: 0, draft: 0, completed: 0 };
       
-      const { data, error } = await query
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      return data || [];
-    }
+      try {
+        // Get total letters
+        const { count: total, error: totalError } = await supabase
+          .from('letters')
+          .select('*', { count: 'exact', head: true });
+          
+        if (totalError) throw totalError;
+        
+        // Get draft letters
+        const { count: draft, error: draftError } = await supabase
+          .from('letters')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'draft');
+          
+        if (draftError) throw draftError;
+        
+        // Get completed letters
+        const { count: completed, error: completedError } = await supabase
+          .from('letters')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'completed');
+          
+        if (completedError) throw completedError;
+        
+        return { total: total || 0, draft: draft || 0, completed: completed || 0 };
+      } catch (error) {
+        console.error('Error fetching letters stats:', error);
+        return { total: 0, draft: 0, completed: 0 };
+      }
+    },
+    enabled: !!dbUser?.id && hasPermission('view:letters'),
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
   
-  // استعلام لإحصائيات المهام - للمستخدمين الذين لديهم صلاحيات المهام فقط
-  const { data: taskStats = { total: 0, assigned: 0, pending: 0 } } = useQuery({
-    queryKey: ['task-stats', dbUser?.id],
-    enabled: !!dbUser?.id && hasTaskPermissions,
+  // Fetch tasks statistics
+  const { data: tasksStats = { total: 0, new: 0, inProgress: 0, completed: 0, overdue: 0 }, isLoading: tasksLoading } = useQuery({
+    queryKey: ['tasks-stats', dbUser?.id],
     queryFn: async () => {
+      if (!dbUser?.id || !hasPermission('view:tasks') && !hasPermission('view:tasks:assigned') && !hasPermission('view:tasks:own')) {
+        return { total: 0, new: 0, inProgress: 0, completed: 0, overdue: 0 };
+      }
+      
       try {
-        // استعلام لإحصائيات المهام
-        const { data: tasksCount, error: countError } = await supabase
-          .from('tasks')
-          .select('*', { count: 'exact', head: true })
-          .eq('is_active', true);
+        // Create base query
+        const createBaseQuery = () => {
+          let query = supabase.from('tasks').select('*', { count: 'exact', head: true });
+          
+          // Apply filters based on permissions
+          if (!hasPermission('view:tasks:all')) {
+            let conditions = [];
+            
+            if (hasPermission('view:tasks:own')) {
+              conditions.push(`created_by.eq.${dbUser.id}`);
+            }
+            
+            if (hasPermission('view:tasks:assigned')) {
+              conditions.push(`assigned_to.eq.${dbUser.id}`);
+            }
+            
+            if (conditions.length > 0) {
+              query = query.or(conditions.join(','));
+            }
+          }
+          
+          return query;
+        };
         
-        if (countError) throw countError;
+        // Get total tasks
+        const { count: total, error: totalError } = await createBaseQuery();
+        if (totalError) throw totalError;
         
-        // استعلام للمهام المسندة للمستخدم
-        const { data: assignedCount, error: assignedError } = await supabase
-          .from('tasks')
-          .select('*', { count: 'exact', head: true })
-          .eq('assigned_to', dbUser?.id)
-          .eq('is_active', true);
+        // Get new tasks
+        const { count: newCount, error: newError } = await createBaseQuery()
+          .eq('status', 'new');
+        if (newError) throw newError;
         
-        if (assignedError) throw assignedError;
+        // Get in-progress tasks
+        const { count: inProgressCount, error: inProgressError } = await createBaseQuery()
+          .eq('status', 'in_progress');
+        if (inProgressError) throw inProgressError;
         
-        // استعلام للمهام المنتظرة (الجديدة أو قيد التنفيذ)
-        const { data: pendingCount, error: pendingError } = await supabase
-          .from('tasks')
-          .select('*', { count: 'exact', head: true })
-          .in('status', ['new', 'in_progress'])
-          .eq('is_active', true);
+        // Get completed tasks
+        const { count: completedCount, error: completedError } = await createBaseQuery()
+          .eq('status', 'completed');
+        if (completedError) throw completedError;
         
-        if (pendingError) throw pendingError;
+        // Get overdue tasks
+        const now = new Date().toISOString();
+        const { count: overdueCount, error: overdueError } = await createBaseQuery()
+          .lt('due_date', now)
+          .not('status', 'in', '(completed,rejected)');
+        if (overdueError) throw overdueError;
         
-        return {
-          total: tasksCount || 0,
-          assigned: assignedCount || 0,
-          pending: pendingCount || 0
+        return { 
+          total: total || 0, 
+          new: newCount || 0, 
+          inProgress: inProgressCount || 0, 
+          completed: completedCount || 0,
+          overdue: overdueCount || 0
         };
       } catch (error) {
-        console.error('Error fetching task stats:', error);
-        return { total: 0, assigned: 0, pending: 0 };
+        console.error('Error fetching tasks stats:', error);
+        return { total: 0, new: 0, inProgress: 0, completed: 0, overdue: 0 };
       }
-    }
+    },
+    enabled: !!dbUser?.id && (hasPermission('view:tasks') || hasPermission('view:tasks:assigned') || hasPermission('view:tasks:own')),
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
   
-  // تحديد إذا كان المستخدم ليس لديه أي صلاحيات على الإطلاق
-  const hasNoPermissions = useMemo(() => {
-    if (!dbUser) return true;
-    
-    // فحص كافة الصلاحيات الرئيسية
-    const mainPermissions = [
-      'view:letters', 
-      'create:letters', 
-      'view:approvals', 
-      'view:approvals:own',
-      'view:tasks', 
-      'view:tasks:assigned', 
-      'view:tasks:own'
-    ];
-    
-    // فحص إذا كان المستخدم ليس لديه أي من هذه الصلاحيات
-    return !mainPermissions.some(p => hasPermission(p));
-  }, [dbUser, hasPermission]);
-
-  // لوحة تحكم للمستخدم بدون صلاحيات
-  if (hasNoPermissions) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                <span>{greeting}</span>
-                <span className="text-primary">{dbUser?.full_name}</span>
-                <Sparkles className="h-6 w-6 text-yellow-400 mr-2" />
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2 flex items-center">
-                <Calendar className="h-4 w-4 ml-2" />
-                <span>{new Date().toLocaleDateString()}</span>
-              </p>
-            </div>
-          </div>
-        </motion.div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-8 max-w-4xl mx-auto">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full mb-6">
-              <Shield className="h-10 w-10 text-red-600 dark:text-red-400" />
-            </div>
-            <h2 className="text-2xl font-bold mb-4">ليس لديك صلاحيات كافية</h2>
-            <p className="text-lg text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
-              لم يتم منحك بعد أي صلاحيات في النظام. يرجى التواصل مع مدير النظام للحصول على الصلاحيات المناسبة.
-            </p>
-          </div>
+  // Fetch approvals statistics
+  const { data: approvalsStats = { pending: 0, approved: 0, rejected: 0 }, isLoading: approvalsLoading } = useQuery({
+    queryKey: ['approvals-stats', dbUser?.id],
+    queryFn: async () => {
+      if (!dbUser?.id || !hasPermission('view:approvals')) {
+        return { pending: 0, approved: 0, rejected: 0 };
+      }
+      
+      try {
+        // Get pending approvals
+        const { count: pending, error: pendingError } = await supabase
+          .from('approval_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_to', dbUser.id)
+          .eq('status', 'submitted');
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg">
-              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                <BuildingIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                <span className="text-blue-800 dark:text-blue-300">معلومات المستخدم</span>
-              </h3>
-              <ul className="space-y-3 text-blue-700 dark:text-blue-300">
-                <li className="flex justify-between">
-                  <span>الاسم:</span>
-                  <span className="font-medium">{dbUser?.full_name}</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>البريد الإلكتروني:</span>
-                  <span className="font-medium">{dbUser?.email}</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>الفرع:</span>
-                  <span className="font-medium">{dbUser?.branch?.name || 'غير محدد'}</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>الدور:</span>
-                  <span className="font-medium">{dbUser?.role === 'admin' ? 'مدير' : 'مستخدم'}</span>
-                </li>
-              </ul>
-            </div>
-            
-            <div className="bg-purple-50 dark:bg-purple-900/20 p-6 rounded-lg">
-              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                <BuildingIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                <span className="text-purple-800 dark:text-purple-300">خيارات متاحة</span>
-              </h3>
-              <div className="space-y-3">
-                <p className="text-purple-700 dark:text-purple-300 mb-4">
-                  يمكنك الوصول إلى الصفحات التالية:
-                </p>
-                <Link 
-                  to="/admin/settings"
-                  className="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm text-purple-700 dark:text-purple-300 hover:shadow-md transition-shadow"
-                >
-                  <BuildingIcon className="h-5 w-5" />
-                  <span>الإعدادات الشخصية</span>
-                </Link>
-                <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-purple-700 dark:text-purple-300">
-                  <p className="text-sm">
-                    للحصول على صلاحيات إضافية، يرجى التواصل مع مسؤول النظام
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        if (pendingError) throw pendingError;
         
-        {/* بطاقة توضيحية */}
-        <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-lg max-w-4xl mx-auto">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
-            <div>
-              <h3 className="font-medium text-amber-800 dark:text-amber-300 mb-1">لماذا لا يمكنني رؤية بعض الأقسام؟</h3>
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                يعتمد النظام على صلاحيات المستخدم لتحديد الأقسام والميزات المتاحة. حالياً، لا توجد لديك صلاحيات للوصول إلى أقسام النظام المختلفة.
-                للحصول على الوصول، يرجى التواصل مع مدير النظام.
-              </p>
-            </div>
-          </div>
+        // Get approved requests
+        const { count: approved, error: approvedError } = await supabase
+          .from('approval_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_to', dbUser.id)
+          .eq('status', 'approved');
+          
+        if (approvedError) throw approvedError;
+        
+        // Get rejected requests
+        const { count: rejected, error: rejectedError } = await supabase
+          .from('approval_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_to', dbUser.id)
+          .eq('status', 'rejected');
+          
+        if (rejectedError) throw rejectedError;
+        
+        return { pending: pending || 0, approved: approved || 0, rejected: rejected || 0 };
+      } catch (error) {
+        console.error('Error fetching approvals stats:', error);
+        return { pending: 0, approved: 0, rejected: 0 };
+      }
+    },
+    enabled: !!dbUser?.id && hasPermission('view:approvals'),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+  
+  // Format date in Arabic
+  const formatDate = (date: Date) => {
+    const options: Intl.DateTimeFormatOptions = { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    };
+    return date.toLocaleDateString('ar-SA', options);
+  };
+  
+  // Format time in Arabic
+  const formatTime = (date: Date) => {
+    const options: Intl.DateTimeFormatOptions = { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: true
+    };
+    return date.toLocaleTimeString('ar-SA', options);
+  };
+  
+  // Get weather icon based on condition
+  const getWeatherIcon = (condition: string) => {
+    switch (condition.toLowerCase()) {
+      case 'مشمس':
+        return <Sun className="h-8 w-8 text-yellow-500" />;
+      case 'غائم':
+      case 'غائم جزئياً':
+        return <Cloud className="h-8 w-8 text-gray-500" />;
+      case 'ممطر':
+        return <CloudRain className="h-8 w-8 text-blue-500" />;
+      case 'ثلجي':
+        return <CloudSnow className="h-8 w-8 text-blue-300" />;
+      case 'عاصف':
+        return <Wind className="h-8 w-8 text-gray-600" />;
+      default:
+        return <Sun className="h-8 w-8 text-yellow-500" />;
+    }
+  };
+  
+  // Chart data for letters
+  const lettersChartData = {
+    labels: ['مسودة', 'مكتملة'],
+    datasets: [
+      {
+        label: 'الخطابات',
+        data: [lettersStats.draft, lettersStats.completed],
+        backgroundColor: [
+          'rgba(255, 159, 64, 0.6)',
+          'rgba(75, 192, 192, 0.6)',
+        ],
+        borderColor: [
+          'rgb(255, 159, 64)',
+          'rgb(75, 192, 192)',
+        ],
+        borderWidth: 1,
+      },
+    ],
+  };
+  
+  // Chart data for tasks
+  const tasksChartData = {
+    labels: ['جديدة', 'قيد التنفيذ', 'مكتملة', 'متأخرة'],
+    datasets: [
+      {
+        label: 'المهام',
+        data: [tasksStats.new, tasksStats.inProgress, tasksStats.completed, tasksStats.overdue],
+        backgroundColor: [
+          'rgba(54, 162, 235, 0.6)',
+          'rgba(255, 206, 86, 0.6)',
+          'rgba(75, 192, 192, 0.6)',
+          'rgba(255, 99, 132, 0.6)',
+        ],
+        borderColor: [
+          'rgb(54, 162, 235)',
+          'rgb(255, 206, 86)',
+          'rgb(75, 192, 192)',
+          'rgb(255, 99, 132)',
+        ],
+        borderWidth: 1,
+      },
+    ],
+  };
+  
+  // Chart data for approvals
+  const approvalsChartData = {
+    labels: ['معلقة', 'موافق عليها', 'مرفوضة'],
+    datasets: [
+      {
+        label: 'الموافقات',
+        data: [approvalsStats.pending, approvalsStats.approved, approvalsStats.rejected],
+        backgroundColor: [
+          'rgba(255, 206, 86, 0.6)',
+          'rgba(75, 192, 192, 0.6)',
+          'rgba(255, 99, 132, 0.6)',
+        ],
+        borderColor: [
+          'rgb(255, 206, 86)',
+          'rgb(75, 192, 192)',
+          'rgb(255, 99, 132)',
+        ],
+        borderWidth: 1,
+      },
+    ],
+  };
+  
+  // Chart data for activity over time (mock data)
+  const activityChartData = {
+    labels: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'],
+    datasets: [
+      {
+        fill: true,
+        label: 'الخطابات',
+        data: [12, 19, 3, 5, 2, 3],
+        borderColor: 'rgb(75, 192, 192)',
+        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+        tension: 0.4,
+      },
+      {
+        fill: true,
+        label: 'المهام',
+        data: [5, 15, 10, 12, 8, 7],
+        borderColor: 'rgb(54, 162, 235)',
+        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+        tension: 0.4,
+      },
+    ],
+  };
+  
+  // Chart options
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom' as const,
+        labels: {
+          font: {
+            family: 'Cairo'
+          }
+        }
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          font: {
+            family: 'Cairo'
+          }
+        }
+      },
+      x: {
+        ticks: {
+          font: {
+            family: 'Cairo'
+          }
+        }
+      }
+    }
+  };
+  
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold mb-1">مرحباً، {dbUser?.full_name || 'المستخدم'}</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            {formatDate(currentTime)} | {dbUser?.branch?.name && `فرع ${dbUser.branch.name}`}
+          </p>
         </div>
       </div>
-    );
-  }
-
-  // لوحة تحكم للمستخدم ذو الصلاحيات
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-      {/* Header Section - Welcome and Date */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="mb-8"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-              <span>{greeting}</span>
-              <span className="text-primary">{dbUser?.full_name}</span>
-              <Sparkles className="h-6 w-6 text-yellow-400 mr-2" />
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2 flex items-center">
-              <Calendar className="h-4 w-4 ml-2" />
-              <span>{new Date().toLocaleDateString()}</span>
-            </p>
-          </div>
-
-          <div className="flex gap-3 items-center">
-            {dbUser?.role === 'admin' && (
-              <div className="min-w-[200px]">
-                <BranchSelector 
-                  value={selectedBranch}
-                  onChange={setSelectedBranch}
-                  placeholder="جميع الفروع"
-                  showAll
-                  className="bg-white dark:bg-gray-800 shadow-sm"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      </motion.div>
-
-      {/* رسالة تنبيه للمستخدمين الذين يمكنهم عرض الخطابات ولا يمكنهم إنشاؤها */}
-      {hasPermission('view:letters') && !hasPermission('create:letters') && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-lg text-amber-800 dark:text-amber-300 flex items-start gap-3"
-        >
-          <Info className="h-5 w-5 mt-0.5 flex-shrink-0" />
-          <div>
-            <h3 className="font-medium mb-1">تنبيه: صلاحيات محدودة</h3>
-            <p>
-              لديك صلاحيات لعرض الخطابات فقط. ليس لديك صلاحية إنشاء خطابات جديدة. 
-              إذا كنت تحتاج إلى إنشاء خطابات، يرجى التواصل مع مدير النظام للحصول على الصلاحيات اللازمة.
-            </p>
-          </div>
-        </motion.div>
-      )}
-
-      {/* بطاقات الإحصائيات - تظهر فقط إذا كانت لديه صلاحية عرض الخطابات */}
-      <RestrictedComponent permissions={['view:letters']}>
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
-        >
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 opacity-10">
-              <FileText className="h-32 w-32 -mt-6 -mr-6" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">إجمالي الخطابات</h3>
-            <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
-              <span className="text-4xl font-bold">{stats?.total || 0}</span>
-              <span className="text-blue-100">خطاب</span>
-            </div>
-            <div className="mt-4">
-              <button
-                onClick={() => navigate('/admin/letters')}
-                className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                <span>عرض الكل</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 opacity-10">
-              <Calendar className="h-32 w-32 -mt-6 -mr-6" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">
-              خطابات {period === 'week' ? 'الأسبوع' : period === 'month' ? 'الشهر' : 'السنة'}
-            </h3>
-            <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
-              <span className="text-4xl font-bold">{stats?.recent || 0}</span>
-              <span className="text-green-100">خطاب</span>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-1">
-              <button
-                onClick={() => setPeriod('week')}
-                className={`text-xs ${period === 'week' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
-              >
-                أسبوع
-              </button>
-              <button
-                onClick={() => setPeriod('month')}
-                className={`text-xs ${period === 'month' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
-              >
-                شهر
-              </button>
-              <button
-                onClick={() => setPeriod('year')}
-                className={`text-xs ${period === 'year' ? 'bg-white/30' : 'bg-white/20 hover:bg-white/30'} transition-colors px-3 py-1 rounded-full`}
-              >
-                سنة
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 opacity-10">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-32 w-32 -mt-6 -mr-6">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold mb-2">المسودات</h3>
-            <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
-              <span className="text-4xl font-bold">{stats?.draft || 0}</span>
-              <span className="text-amber-100">خطاب</span>
-            </div>
-            <div className="mt-4">
-              <button
-                onClick={() => navigate('/admin/letters?status=draft')}
-                className="text-xs bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full flex items-center gap-1.5"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                <span>عرض المسودات</span>
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </RestrictedComponent>
-
-      {/* Activity and Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Quick Actions */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-sm col-span-1 overflow-hidden"
-        >
-          <div className="p-5 border-b dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 ml-2 text-primary">
-                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path>
-                <path d="M9 18h6"></path>
-                <path d="M10 22h4"></path>
-              </svg>
-              إجراءات سريعة
+      
+      {/* Time and Weather Card */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border dark:border-gray-800 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" />
+              الوقت والتاريخ
             </h2>
           </div>
           
-          <div className="p-5 space-y-4">
-            {/* إنشاء خطاب جديد - يظهر فقط إذا كانت لديه صلاحية create:letters */}
-            <RestrictedComponent permissions={['create:letters']}>
-              <button
-                onClick={() => navigate('/admin/letters/new')}
-                className="w-full flex items-center p-4 rounded-lg transition-all bg-primary/5 hover:bg-primary/10 border-2 border-primary/10 hover:border-primary/20"
-              >
-                <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center ml-4">
-                  <Plus className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1 text-right">
-                  <h3 className="font-semibold text-gray-800 dark:text-white">إنشاء خطاب جديد</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">إنشاء خطاب جديد من القوالب المتاحة</p>
-                </div>
-              </button>
-            </RestrictedComponent>
-            
-            {/* رسالة عدم وجود صلاحية إنشاء خطاب - تظهر فقط للمستخدمين الذين لديهم صلاحية عرض وليس إنشاء */}
-            {hasPermission('view:letters') && !hasPermission('create:letters') && (
-              <div className="w-full p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30">
-                <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center ml-4 flex-shrink-0">
-                    <Info className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div className="flex-1 text-right">
-                    <h3 className="font-medium text-amber-800 dark:text-amber-300">صلاحيات محدودة</h3>
-                    <p className="text-sm text-amber-700 dark:text-amber-400">ليس لديك صلاحية إنشاء خطابات جديدة. يرجى التواصل مع مدير النظام للحصول على الصلاحية.</p>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* إدارة الخطابات - تظهر فقط إذا كانت لديه صلاحية view:letters */}
-            <RestrictedComponent permissions={['view:letters']}>
-              <button
-                onClick={() => navigate('/admin/letters')}
-                className="w-full flex items-center p-4 rounded-lg transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50 border-2 border-gray-100 dark:border-gray-700"
-              >
-                <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center ml-4">
-                  <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div className="flex-1 text-right">
-                  <h3 className="font-semibold text-gray-800 dark:text-white">إدارة الخطابات</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">عرض وإدارة جميع الخطابات الخاصة بك</p>
-                </div>
-              </button>
-            </RestrictedComponent>
-            
-            {/* إدارة المهام - تظهر فقط إذا كانت لديه صلاحيات المهام */}
-            <RestrictedComponent permissions={['view:tasks', 'view:tasks:assigned', 'view:tasks:own']}>
-              <button
-                onClick={() => navigate('/admin/tasks')}
-                className="w-full flex items-center p-4 rounded-lg transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50 border-2 border-gray-100 dark:border-gray-700"
-              >
-                <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center ml-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-amber-600 dark:text-amber-400">
-                    <circle cx="12" cy="12" r="10"/>
-                    <polyline points="12 6 12 12 16 14"/>
-                  </svg>
-                </div>
-                <div className="flex-1 text-right">
-                  <h3 className="font-semibold text-gray-800 dark:text-white">إدارة المهام</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">عرض وإدارة المهام المسندة إليك</p>
-                </div>
-              </button>
-            </RestrictedComponent>
-            
-            {/* إدارة الفروع - تظهر فقط للمستخدمين الذين لديهم صلاحية view:branches */}
-            <RestrictedComponent permissions={['view:branches']}>
-              <button
-                onClick={() => navigate('/admin/branches')}
-                className="w-full flex items-center p-4 rounded-lg transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50 border-2 border-gray-100 dark:border-gray-700"
-              >
-                <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center ml-4">
-                  <BuildingIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div className="flex-1 text-right">
-                  <h3 className="font-semibold text-gray-800 dark:text-white">إدارة الفروع</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">إدارة فروع المنظمة والمستخدمين</p>
-                </div>
-              </button>
-            </RestrictedComponent>
+          <div className="flex flex-col items-center justify-center py-4">
+            <div className="text-4xl font-bold mb-2 font-mono">
+              {formatTime(currentTime)}
+            </div>
+            <div className="text-lg text-gray-600 dark:text-gray-400">
+              {formatDate(currentTime)}
+            </div>
           </div>
-        </motion.div>
+          
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+              <Calendar className="h-6 w-6 mx-auto mb-2 text-primary" />
+              <p className="text-sm font-medium">التاريخ الهجري</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">١٤ شوال ١٤٤٦</p>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+              <Clock className="h-6 w-6 mx-auto mb-2 text-primary" />
+              <p className="text-sm font-medium">ساعات العمل</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">8:00 ص - 4:00 م</p>
+            </div>
+          </div>
+        </div>
         
-        {/* Activity Chart - يظهر فقط للمستخدمين الذين لديهم صلاحية عرض الخطابات */}
-        <RestrictedComponent permissions={['view:letters']}>
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm lg:col-span-2 overflow-hidden"
-          >
-            <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 ml-2 text-green-500">
-                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-                </svg>
-                نشاط الخطابات
-                {selectedBranch && (
-                  <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
-                    حسب الفرع
-                  </span>
-                )}
-              </h2>
-              
-              <div>
-                <select className="text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg py-1.5 px-3">
-                  <option>آخر 6 أشهر</option>
-                  <option>آخر سنة</option>
-                  <option>آخر 3 سنوات</option>
-                </select>
-              </div>
+        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border dark:border-gray-800 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Sun className="h-5 w-5 text-primary" />
+              حالة الطقس
+            </h2>
+            <button 
+              onClick={() => {
+                setWeatherLoading(true);
+                setTimeout(() => setWeatherLoading(false), 1000);
+              }}
+              className="p-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+              title="تحديث"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
+          
+          {weatherLoading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-4 border-t-primary border-b-transparent border-l-primary border-r-transparent"></div>
             </div>
-            
-            <div className="p-5">
-              <div className="h-60 w-full flex items-end justify-between space-x-2 rtl:space-x-reverse pr-6 pb-5 relative">
-                {/* Y-axis */}
-                <div className="absolute bottom-0 right-0 top-0 flex flex-col justify-between text-xs text-gray-500 dark:text-gray-400 py-5">
-                  <span>100</span>
-                  <span>75</span>
-                  <span>50</span>
-                  <span>25</span>
-                  <span>0</span>
-                </div>
-                
-                {/* Chart bars - محاكاة */}
-                {[65, 32, 45, 78, 52, 60].map((value, index) => (
-                  <div key={index} className="flex-1 flex flex-col items-center">
-                    <div className="h-full w-full flex items-end justify-center">
-                      <div 
-                        className="w-14 bg-gradient-to-t from-blue-500 to-primary rounded-t-md transition-all duration-500"
-                        style={{ height: `${(value / 100) * 100}%` }}
-                      ></div>
-                    </div>
-                    <span className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-                      {['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'][index]}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
-                <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                  <div className="text-sm text-gray-600 dark:text-gray-400">معدل الخطابات</div>
-                  <div className="text-xl font-bold">10.2 / شهر</div>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                  <div className="text-sm text-gray-600 dark:text-gray-400">النمو</div>
-                  <div className="text-xl font-bold text-green-500">+12.5%</div>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                  <div className="text-sm text-gray-600 dark:text-gray-400">الشهر الأعلى</div>
-                  <div className="text-xl font-bold">أبريل</div>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
-                  <div className="text-sm text-gray-600 dark:text-gray-400">المجموع</div>
-                  <div className="text-xl font-bold">{stats?.total || 0}</div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </RestrictedComponent>
-        
-        {/* لوحة معلومات للمستخدمين بدون صلاحيات الخطابات */}
-        {!hasPermission('view:letters') && hasTaskPermissions && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm lg:col-span-2 overflow-hidden"
-          >
-            <div className="p-5 border-b dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-                <Info className="h-5 w-5 ml-2 text-blue-500" />
-                معلومات النظام
-              </h2>
-            </div>
-            
-            <div className="p-6">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold mb-2 flex items-center gap-2 text-blue-800 dark:text-blue-300">
-                  <Shield className="h-5 w-5" />
-                  صلاحيات محدودة
-                </h3>
-                <p className="text-blue-700 dark:text-blue-400">
-                  لا تمتلك حالياً صلاحيات الوصول لنظام الخطابات. إذا كنت تحتاج للوصول إلى هذا النظام،
-                  يرجى التواصل مع مدير النظام لمنحك الصلاحيات المطلوبة.
-                </p>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                  <h4 className="font-medium mb-2">صلاحياتك الحالية:</h4>
-                  <ul className="text-sm space-y-1 list-disc list-inside">
-                    {hasPermission('view:tasks') && <li>عرض المهام</li>}
-                    {hasPermission('create:tasks') && <li>إنشاء المهام</li>}
-                    {hasPermission('view:approvals') && <li>عرض طلبات الموافقة</li>}
-                    {/* يمكن إضافة المزيد من الصلاحيات هنا */}
-                  </ul>
-                  {!hasPermission('view:tasks') && !hasPermission('create:tasks') && 
-                   !hasPermission('view:approvals') && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                      لم يتم تعيين أي صلاحيات لك بعد
-                    </p>
-                  )}
-                </div>
-                
-                <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                  <h4 className="font-medium mb-2">الإعدادات المتاحة لك:</h4>
-                  <ul className="text-sm space-y-1 list-disc list-inside">
-                    <li>تعديل المعلومات الشخصية</li>
-                    <li>تغيير كلمة المرور</li>
-                    <li>إعدادات المظهر والخصوصية</li>
-                  </ul>
-                </div>
-              </div>
-              
-              <div className="flex justify-center">
-                <Link 
-                  to="/admin/settings"
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-                >
-                  الذهاب إلى الإعدادات
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </div>
-
-      {/* Recent Letters and Tasks - يظهر فقط للمستخدمين الذين لديهم صلاحيات */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Recent Letters - يظهر فقط للمستخدمين الذين لديهم صلاحية عرض الخطابات */}
-        <RestrictedComponent permissions={['view:letters']}>
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm lg:col-span-2 overflow-hidden"
-          >
-            <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-                <BuildingIcon className="h-5 w-5 ml-2 text-blue-500" />
-                آخر الخطابات
-                {selectedBranch && (
-                  <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
-                    حسب الفرع
-                  </span>
-                )}
-              </h2>
-              
-              <button
-                onClick={() => navigate('/admin/letters')}
-                className="text-primary hover:text-primary/80 text-sm flex items-center gap-1"
+          ) : weatherError ? (
+            <div className="text-center py-8">
+              <AlertTriangle className="h-12 w-12 mx-auto text-yellow-500 mb-2" />
+              <p className="text-gray-600 dark:text-gray-400">تعذر تحميل بيانات الطقس</p>
+              <button 
+                onClick={() => {
+                  setWeatherError(false);
+                  setWeatherLoading(true);
+                  setTimeout(() => setWeatherLoading(false), 1000);
+                }}
+                className="mt-2 px-3 py-1 bg-primary text-white rounded-md text-sm"
               >
-                <span>عرض الكل</span>
-                <ArrowRight className="h-4 w-4" />
+                إعادة المحاولة
               </button>
             </div>
-            
-            <div className="p-5">
-              {lettersLoading ? (
-                <div className="flex justify-center py-10">
-                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent"></div>
+          ) : weather ? (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-medium text-lg">{weather.location}</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">{formatDate(currentTime)}</p>
                 </div>
-              ) : recentLetters && recentLetters.length > 0 ? (
-                <div className="divide-y dark:divide-gray-700">
-                  {recentLetters.map((letter: any) => (
-                    <div 
-                      key={letter.id}
-                      className="py-4 flex items-center gap-4 group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/20 p-2 rounded-lg transition-all"
-                      onClick={() => navigate(`/admin/letters/view/${letter.id}`)}
-                    >
-                      {letter.letter_templates?.image_url ? (
-                        <div className="h-14 w-14 rounded-lg border dark:border-gray-700 overflow-hidden flex-shrink-0">
-                          <img 
-                            src={letter.letter_templates.image_url} 
-                            alt={letter.letter_templates?.name || 'قالب الخطاب'}
-                            className="h-full w-full object-cover" 
-                          />
-                        </div>
-                      ) : (
-                        <div className="h-14 w-14 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                          <FileText className="h-6 w-6 text-gray-400" />
-                        </div>
-                      )}
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-semibold text-gray-800 dark:text-white truncate">
-                            {letter.content?.subject || 'بدون عنوان'}
-                          </h3>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            letter.status === 'completed' 
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                          }`}>
-                            {letter.status === 'completed' ? 'مكتمل' : 'مسودة'}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center mt-1 text-sm text-gray-600 dark:text-gray-400">
-                          <span className="truncate">إلى: {letter.content?.to || 'غير محدد'}</span>
-                          <span className="mx-2">•</span>
-                          <span className="whitespace-nowrap">{letter.number}/{letter.year}</span>
-                        </div>
-                        
-                        <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                          {new Date(letter.created_at).toLocaleDateString()} - {new Date(letter.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                      
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ArrowRight className="h-5 w-5 text-gray-400" />
-                      </div>
+                <div className="text-center">
+                  {getWeatherIcon(weather.condition)}
+                  <p className="text-sm mt-1">{weather.condition}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-center mb-6">
+                <div className="text-5xl font-bold">{weather.temperature}°</div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg flex items-center">
+                  <Droplets className="h-5 w-5 text-blue-500 mr-2" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">الرطوبة</p>
+                    <p className="font-medium">{weather.humidity}%</p>
+                  </div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg flex items-center">
+                  <Wind className="h-5 w-5 text-blue-500 mr-2" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">سرعة الرياح</p>
+                    <p className="font-medium">{weather.windSpeed} كم/س</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-4 pt-4 border-t dark:border-gray-800">
+                <h4 className="text-sm font-medium mb-2">توقعات الأيام القادمة</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {weather.forecast.map((day: any, index: number) => (
+                    <div key={index} className="bg-gray-50 dark:bg-gray-800 p-2 rounded-lg text-center">
+                      <p className="text-xs font-medium">{day.day}</p>
+                      <div className="my-1">{getWeatherIcon(day.condition)}</div>
+                      <p className="text-sm font-bold">{day.temp}°</p>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="text-center py-10 bg-gray-50 dark:bg-gray-700/20 rounded-lg">
-                  <FileText className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-600 mb-3" />
-                  <p className="text-gray-500 dark:text-gray-400 font-medium">لا توجد خطابات حتى الآن</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">ابدأ بإنشاء خطاب جديد</p>
-                  {hasPermission('create:letters') ? (
-                    <button 
-                      onClick={() => navigate('/admin/letters/new')}
-                      className="px-4 py-2 bg-primary text-white rounded-lg text-sm flex items-center gap-2 mx-auto"
-                    >
-                      <Plus className="h-4 w-4" />
-                      خطاب جديد
-                    </button>
-                  ) : (
-                    <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg text-sm mx-auto max-w-sm">
-                      ليس لديك صلاحية لإنشاء خطابات جديدة. تواصل مع مدير النظام للحصول على الصلاحيات اللازمة.
-                    </div>
-                  )}
-                </div>
-              )}
+              </div>
             </div>
-          </motion.div>
-        </RestrictedComponent>
-        
-        {/* Tasks & Reminders - يظهر فقط للمستخدمين الذين لديهم صلاحية المهام */}
-        <RestrictedComponent permissions={['view:tasks', 'view:tasks:assigned', 'view:tasks:own']}>
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-            className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden ${!hasPermission('view:letters') ? 'lg:col-span-3' : ''}`}
-          >
-            <div className="p-5 border-b dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 ml-2 text-purple-500">
-                  <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-                  <line x1="3" x2="21" y1="9" y2="9"></line>
-                  <path d="m9 16 2 2 4-4"></path>
-                </svg>
-                المهام والتذكيرات
-                {selectedBranch && (
-                  <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
-                    حسب الفرع
-                  </span>
-                )}
+          ) : null}
+        </div>
+      </div>
+      
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        {/* Letters Stats */}
+        {hasPermission('view:letters') && (
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border dark:border-gray-800 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                إحصائيات الخطابات
               </h2>
+              <button 
+                onClick={() => navigate('/admin/letters')}
+                className="text-xs text-primary hover:underline"
+              >
+                عرض الكل
+              </button>
             </div>
             
-            <div className="p-5">
-              <div className="space-y-3">
-                {/* إحصائيات المهام */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي المهام</p>
-                    <p className="text-2xl font-bold mt-1">{taskStats.total}</p>
+            {lettersLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-t-primary border-b-transparent border-l-primary border-r-transparent"></div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-primary">{lettersStats.total}</div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">إجمالي</p>
                   </div>
-                  <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">المهام المسندة</p>
-                    <p className="text-2xl font-bold mt-1">{taskStats.assigned}</p>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-yellow-500">{lettersStats.draft}</div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">مسودة</p>
                   </div>
-                  <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">المهام المعلقة</p>
-                    <p className="text-2xl font-bold mt-1">{taskStats.pending}</p>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-green-500">{lettersStats.completed}</div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">مكتملة</p>
                   </div>
                 </div>
                 
-                {/* نماذج المهام */}
-                <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
-                  <div className="flex items-center">
-                    <div className="h-5 w-5 rounded-full border-2 border-primary flex-shrink-0"></div>
-                    
-                    <div className="flex-1 mr-3 min-w-0">
-                      <p className="font-medium text-gray-800 dark:text-white">
-                        تحديث الإعدادات
-                      </p>
-                      
-                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        الموعد النهائي: {new Date().toLocaleDateString()}
-                      </p>
-                    </div>
-                    
-                    <button className="p-1 text-primary hover:text-primary/80">
-                      <CheckCircle className="h-5 w-5" />
-                    </button>
+                <div className="h-40">
+                  <Doughnut data={lettersChartData} options={chartOptions} />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        
+        {/* Tasks Stats */}
+        {(hasPermission('view:tasks') || hasPermission('view:tasks:assigned') || hasPermission('view:tasks:own')) && (
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border dark:border-gray-800 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-primary" />
+                إحصائيات المهام
+              </h2>
+              <button 
+                onClick={() => navigate('/admin/tasks')}
+                className="text-xs text-primary hover:underline"
+              >
+                عرض الكل
+              </button>
+            </div>
+            
+            {tasksLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-t-primary border-b-transparent border-l-primary border-r-transparent"></div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-primary">{tasksStats.total}</div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">إجمالي</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-blue-500">{tasksStats.new}</div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">جديدة</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-yellow-500">{tasksStats.inProgress}</div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">قيد التنفيذ</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-green-500">{tasksStats.completed}</div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">مكتملة</p>
                   </div>
                 </div>
-              </div>
-              
-              {/* زر إضافة مهمة جديدة - يظهر فقط إذا كان لديه الصلاحية */}
-              <RestrictedComponent permissions={['create:tasks', 'create:tasks:own']}>
-                <div className="mt-4 pt-4 border-t dark:border-gray-700">
-                  <button 
-                    onClick={() => navigate('/admin/tasks/new')}
-                    className="w-full py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors"
-                  >
-                    إضافة مهمة جديدة
-                  </button>
+                
+                <div className="h-40">
+                  <Bar data={tasksChartData} options={chartOptions} />
                 </div>
-              </RestrictedComponent>
-              
-              {/* رابط للانتقال لصفحة المهام الرئيسية */}
-              <div className="mt-4 text-center">
-                <Link
-                  to="/admin/tasks"
-                  className="inline-flex items-center text-primary hover:text-primary/80 text-sm"
-                >
-                  <span>عرض كافة المهام</span>
-                  <ArrowRight className="h-4 w-4 mr-1" />
-                </Link>
-              </div>
+              </>
+            )}
+          </div>
+        )}
+        
+        {/* Approvals Stats */}
+        {hasPermission('view:approvals') && (
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border dark:border-gray-800 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <ClipboardCheck className="h-5 w-5 text-primary" />
+                إحصائيات الموافقات
+              </h2>
+              <button 
+                onClick={() => navigate('/admin/approvals')}
+                className="text-xs text-primary hover:underline"
+              >
+                عرض الكل
+              </button>
             </div>
-          </motion.div>
-        </RestrictedComponent>
+            
+            {approvalsLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-t-primary border-b-transparent border-l-primary border-r-transparent"></div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-yellow-500">{approvalsStats.pending}</div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">معلقة</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-green-500">{approvalsStats.approved}</div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">موافق عليها</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-red-500">{approvalsStats.rejected}</div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">مرفوضة</p>
+                  </div>
+                </div>
+                
+                <div className="h-40">
+                  <Doughnut data={approvalsChartData} options={chartOptions} />
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Tips & Shortcuts */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.6 }}
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mb-6"
-      >
+      
+      {/* Activity Chart */}
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border dark:border-gray-800 p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-            <Sparkles className="h-5 w-5 ml-2 text-yellow-500" />
-            نصائح واختصارات
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-primary" />
+            النشاط خلال الأشهر الماضية
           </h2>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
-            <div className="font-medium text-gray-800 dark:text-white mb-2">اختصارات لوحة المفاتيح</div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              استخدم <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded">Ctrl+K</kbd> للبحث السريع
-              {hasPermission('create:letters') && (
-                <> و <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded">Ctrl+/</kbd> لإنشاء خطاب جديد</>
-              )}.
-            </p>
-          </div>
-          
-          <RestrictedComponent permissions={['view:letters']}>
-            <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
-              <div className="font-medium text-gray-800 dark:text-white mb-2">النماذج النصية الجاهزة</div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                استخدم النماذج النصية الجاهزة لتسريع كتابة الخطابات المتكررة بنقرة واحدة.
-              </p>
-            </div>
-          </RestrictedComponent>
-          
-          <RestrictedComponent permissions={['export:letters']}>
-            <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
-              <div className="font-medium text-gray-800 dark:text-white mb-2">تصدير الخطابات</div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                يمكنك تصدير الخطابات بصيغة PDF عالية الجودة أو طباعتها مباشرة من النظام.
-              </p>
-            </div>
-          </RestrictedComponent>
-          
-          <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
-            <div className="font-medium text-gray-800 dark:text-white mb-2">الإعدادات الشخصية</div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              يمكنك تخصيص إعدادات حسابك من صفحة الإعدادات في القائمة الجانبية.
-            </p>
-          </div>
+        <div className="h-80">
+          <Line data={activityChartData} options={chartOptions} />
         </div>
-      </motion.div>
+      </div>
       
-      {/* بطاقة توضيحية - تظهر فقط للمستخدمين الذين ليس لديهم بعض الصلاحيات */}
-      {(!hasPermission('create:letters') || !hasPermission('view:letters')) && hasTaskPermissions && (
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-lg max-w-4xl mx-auto">
-          <div className="flex items-start gap-2">
-            <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-            <div>
-              <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-1">معلومات حول الصلاحيات</h3>
-              <p className="text-blue-700 dark:text-blue-400">
-                يعتمد النظام على صلاحيات المستخدم لتحديد الأقسام والميزات المتاحة. 
-                {!hasPermission('view:letters') ? (
-                  <span> لا تملك حالياً صلاحيات الوصول إلى نظام الخطابات. </span>
-                ) : !hasPermission('create:letters') ? (
-                  <span> تملك صلاحية عرض الخطابات فقط ولا يمكنك إنشاء خطابات جديدة. </span>
-                ) : ''}
-                للحصول على مزيد من الصلاحيات، يرجى التواصل مع مدير النظام.
-              </p>
-            </div>
+      {/* Quick Access and User Info */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Quick Access */}
+        <div className="md:col-span-2 bg-white dark:bg-gray-900 rounded-lg shadow-sm border dark:border-gray-800 p-6">
+          <h2 className="text-lg font-semibold mb-4">الوصول السريع</h2>
+          
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {hasPermission('create:letters') && (
+              <button
+                onClick={() => navigate('/admin/letters/new')}
+                className="flex flex-col items-center justify-center p-4 bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors"
+              >
+                <FileText className="h-8 w-8 text-primary mb-2" />
+                <span className="text-sm font-medium">إنشاء خطاب جديد</span>
+              </button>
+            )}
+            
+            {hasPermission('create:tasks') && (
+              <button
+                onClick={() => navigate('/admin/tasks/new')}
+                className="flex flex-col items-center justify-center p-4 bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors"
+              >
+                <CheckCircle className="h-8 w-8 text-primary mb-2" />
+                <span className="text-sm font-medium">إنشاء مهمة جديدة</span>
+              </button>
+            )}
+            
+            {hasPermission('view:letters') && (
+              <button
+                onClick={() => navigate('/admin/letters')}
+                className="flex flex-col items-center justify-center p-4 bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors"
+              >
+                <FileText className="h-8 w-8 text-primary mb-2" />
+                <span className="text-sm font-medium">إدارة الخطابات</span>
+              </button>
+            )}
+            
+            {(hasPermission('view:tasks') || hasPermission('view:tasks:assigned') || hasPermission('view:tasks:own')) && (
+              <button
+                onClick={() => navigate('/admin/tasks')}
+                className="flex flex-col items-center justify-center p-4 bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors"
+              >
+                <CheckCircle className="h-8 w-8 text-primary mb-2" />
+                <span className="text-sm font-medium">إدارة المهام</span>
+              </button>
+            )}
+            
+            {hasPermission('view:approvals') && (
+              <button
+                onClick={() => navigate('/admin/approvals')}
+                className="flex flex-col items-center justify-center p-4 bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors"
+              >
+                <ClipboardCheck className="h-8 w-8 text-primary mb-2" />
+                <span className="text-sm font-medium">الموافقات</span>
+              </button>
+            )}
+            
+            <button
+              onClick={() => navigate('/admin/settings')}
+              className="flex flex-col items-center justify-center p-4 bg-primary/5 hover:bg-primary/10 rounded-lg transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-primary mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              <span className="text-sm font-medium">الإعدادات</span>
+            </button>
           </div>
         </div>
-      )}
+        
+        {/* User Info */}
+        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border dark:border-gray-800 p-6">
+          <h2 className="text-lg font-semibold mb-4">معلومات المستخدم</h2>
+          
+          <div className="flex flex-col items-center mb-4">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+              <User className="h-10 w-10 text-primary" />
+            </div>
+            <h3 className="text-lg font-bold">{dbUser?.full_name}</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{dbUser?.email}</p>
+            <div className="mt-2">
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                dbUser?.role === 'admin'
+                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
+                  : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+              }`}>
+                {dbUser?.role === 'admin' ? 'مدير' : 'مستخدم'}
+              </span>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            {dbUser?.branch && (
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div className="flex items-center">
+                  <Building className="h-5 w-5 text-primary mr-2" />
+                  <span className="text-sm font-medium">الفرع</span>
+                </div>
+                <span className="text-sm">{dbUser.branch.name}</span>
+              </div>
+            )}
+            
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="flex items-center">
+                <Calendar className="h-5 w-5 text-primary mr-2" />
+                <span className="text-sm font-medium">تاريخ التسجيل</span>
+              </div>
+              <span className="text-sm">{new Date(dbUser?.created_at || '').toLocaleDateString('ar-SA')}</span>
+            </div>
+            
+            <button
+              onClick={() => navigate('/admin/settings')}
+              className="w-full mt-4 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              تعديل الملف الشخصي
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
-
-// أيقونة دائرة المستخدم
-function User(props: any) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-      {...props}
-    >
-      <circle cx="12" cy="12" r="10"></circle>
-      <circle cx="12" cy="10" r="3"></circle>
-      <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
-    </svg>
-  )
 }

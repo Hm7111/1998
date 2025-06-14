@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   CheckCircle,
-  X,
+  X, UserPlus,
   Clock,
   Edit,
   Trash2,
@@ -555,17 +555,23 @@ export function TaskDetails() {
                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                             <User className="h-4 w-4 text-primary" />
                           </div>
-                          <span className="font-medium">{task.assignee?.full_name || 'غير مسند'}</span>
+                          <div>
+                            <span className="font-medium">{task.assignee?.full_name || 'غير مسند'}</span>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">المكلف بالمهمة</p>
+                          </div>
                         </div>
                       </div>
                       
                       <div>
-                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">منشئ المهمة</h3>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">المرسل</p>
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                            <User className="h-4 w-4 text-green-600 dark:text-green-300" />
+                            <UserPlus className="h-4 w-4 text-green-600 dark:text-green-300" />
                           </div>
-                          <span className="font-medium">{task.creator?.full_name || 'غير معروف'}</span>
+                          <div>
+                            <span className="font-medium">{task.creator?.full_name || 'غير معروف'}</span>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">منشئ المهمة</p>
+                          </div>
                         </div>
                       </div>
                       
@@ -667,237 +673,4 @@ export function TaskDetails() {
                     {task.notes && (
                       <div>
                         <h3 className="font-medium mb-2">ملاحظات</h3>
-                        <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{task.notes}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* التعليقات */}
-                  <div className="pt-6 border-t dark:border-gray-800">
-                    <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
-                      <MessageSquare className="h-5 w-5 text-primary" />
-                      التعليقات
-                      {task.logs && task.logs.filter(log => log.action === 'comment').length > 0 && (
-                        <span className="text-sm bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
-                          {task.logs.filter(log => log.action === 'comment').length}
-                        </span>
-                      )}
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      {task.logs && task.logs
-                        .filter(log => log.action === 'comment')
-                        .map(log => (
-                          <div key={log.id} className="flex gap-3 pb-4 border-b dark:border-gray-700 last:border-0">
-                            <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
-                              <User className="h-5 w-5 text-gray-500" />
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex justify-between items-start mb-1">
-                                <div>
-                                  <p className="font-medium">{log.user?.full_name || 'مستخدم'}</p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    {new Date(log.created_at).toLocaleDateString()} • 
-                                    {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </p>
-                                </div>
-                              </div>
-                              {log.notes && (
-                                <p className="mt-2 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                  {log.notes}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      
-                      {/* نموذج إضافة تعليق */}
-                      <TaskCommentForm
-                        taskId={id}
-                        onSubmit={handleAddComment}
-                        isLoading={loading[`comment_${id}`] || false}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {currentTab === 'activity' && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-primary" />
-                    سجل النشاط
-                  </h3>
-                  
-                  <TaskTimeline logs={task.logs || []} />
-                </div>
-              )}
-              
-              {currentTab === 'attachments' && (
-                <div className="space-y-4">
-                  <TaskAttachments
-                    attachments={task.attachments || []}
-                    taskId={id}
-                    onUpload={handleUploadAttachment}
-                    onDelete={handleDeleteAttachment}
-                    isUploading={loading[`upload_${id}`] || false}
-                    isDeleting={loading}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        {/* الشريط الجانبي */}
-        <div className="space-y-6">
-          {/* إجراءات المهمة */}
-          {canChangeStatus() && (
-            <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-4">
-              <h3 className="font-medium mb-4">تغيير حالة المهمة</h3>
-              <div className="grid grid-cols-1 gap-2">
-                <button
-                  onClick={() => handleStatusChange('new')}
-                  disabled={task.status === 'new' || loading[`status_${id}`]}
-                  className="w-full flex items-center gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-900/30 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
-                    <Clock className="h-3 w-3 text-blue-600 dark:text-blue-300" />
-                  </div>
-                  <span>تعيين كجديدة</span>
-                </button>
-                
-                <button
-                  onClick={() => handleStatusChange('in_progress')}
-                  disabled={task.status === 'in_progress' || loading[`status_${id}`]}
-                  className="w-full flex items-center gap-2 p-3 rounded-lg border border-yellow-200 dark:border-yellow-900/30 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="w-5 h-5 rounded-full bg-yellow-100 dark:bg-yellow-900/50 flex items-center justify-center">
-                    <AlertTriangle className="h-3 w-3 text-yellow-600 dark:text-yellow-300" />
-                  </div>
-                  <span>قيد التنفيذ</span>
-                </button>
-                
-                <button
-                  onClick={() => handleStatusChange('completed')}
-                  disabled={task.status === 'completed' || loading[`status_${id}`]}
-                  className="w-full flex items-center gap-2 p-3 rounded-lg border border-green-200 dark:border-green-900/30 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
-                    <CheckCircle className="h-3 w-3 text-green-600 dark:text-green-300" />
-                  </div>
-                  <span>تمت</span>
-                </button>
-                
-                <button
-                  onClick={() => handleStatusChange('postponed')}
-                  disabled={task.status === 'postponed' || loading[`status_${id}`]}
-                  className="w-full flex items-center gap-2 p-3 rounded-lg border border-purple-200 dark:border-purple-900/30 hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
-                    <Pause className="h-3 w-3 text-purple-600 dark:text-purple-300" />
-                  </div>
-                  <span>تأجيل</span>
-                </button>
-                
-                <button
-                  onClick={() => handleStatusChange('rejected')}
-                  disabled={task.status === 'rejected' || loading[`status_${id}`]}
-                  className="w-full flex items-center gap-2 p-3 rounded-lg border border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="w-5 h-5 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
-                    <X className="h-3 w-3 text-red-600 dark:text-red-300" />
-                  </div>
-                  <span>رفض</span>
-                </button>
-                
-                {loading[`status_${id}`] && (
-                  <div className="text-center mt-2">
-                    <div className="inline-block h-4 w-4 rounded-full border-2 border-primary/30 border-t-primary animate-spin"></div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* أزرار الإجراءات السريعة */}
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-4">
-            <h3 className="font-medium mb-3">إجراءات سريعة</h3>
-            <div className="space-y-2">
-              {canEdit() && (
-                <button
-                  onClick={() => setShowEditForm(true)}
-                  className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  <Edit className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                  <span>تعديل المهمة</span>
-                </button>
-              )}
-              
-              <button
-                onClick={() => setCurrentTab('attachments')}
-                className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-              >
-                <Paperclip className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                <span>إضافة مرفق</span>
-              </button>
-              
-              {canDelete() && (
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-700 dark:text-red-400"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span>حذف المهمة</span>
-                </button>
-              )}
-            </div>
-          </div>
-          
-          {/* معلومات المدة الزمنية */}
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-4">
-            <h3 className="font-medium mb-3 flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              معلومات المدة الزمنية
-            </h3>
-            
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <span className="text-sm font-medium">تاريخ الإنشاء:</span>
-                <span>{formatDate(task.created_at)}</span>
-              </div>
-              
-              {task.due_date && (
-                <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <span className="text-sm font-medium">تاريخ الاستحقاق:</span>
-                  <span className={isOverdue() ? 'text-red-600 dark:text-red-400' : ''}>
-                    {formatDate(task.due_date)}
-                  </span>
-                </div>
-              )}
-              
-              {task.completion_date && (
-                <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  <span className="text-sm font-medium">تاريخ الإنجاز:</span>
-                  <span className="text-green-600 dark:text-green-400">
-                    {formatDate(task.completion_date)}
-                  </span>
-                </div>
-              )}
-              
-              {/* المدة الإجمالية */}
-              <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-lg">
-                <span className="text-sm font-medium">المدة الإجمالية:</span>
-                <span className="font-bold">
-                  {calculateDuration() || 'غير محسوبة'}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+                        <div className="bg-gray-50 dark:bg

@@ -3,14 +3,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
 import { useToast } from '../../../hooks/useToast';
-import { TaskFormData, TaskUpdate, TaskComment, Task, TaskLog } from '../types';
+import { TaskFormData, TaskUpdate, TaskComment, Task, TaskLog, TaskTimeRecord } from '../types';
 
 /**
  * هوك لإدارة عمليات المهام مثل الإنشاء والتحديث والحذف
+ * تمت إضافة وظائف متقدمة لتتبع الوقت والتقارير
  */
 export function useTaskActions() {
   const { toast } = useToast();
-  const { dbUser } = useAuth();
+  const { dbUser, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   
@@ -23,51 +24,85 @@ export function useTaskActions() {
       queryFn: async () => {
         if (!taskId) return null;
         
-        // جلب بيانات المهمة
-        const { data: task, error } = await supabase
-          .from('tasks')
-          .select(`
-            *,
-            creator:created_by(id, full_name, email, role),
-            assignee:assigned_to(id, full_name, email, role),
-            branch:branch_id(id, name, code)
-          `)
-          .eq('id', taskId)
-          .single();
-          
-        if (error) throw error;
+        // التحقق من صلاحيات المستخدم
+        if (!hasPermission('view:tasks') && !hasPermission('view:tasks:assigned') && !hasPermission('view:tasks:own')) {
+          throw new Error('ليس لديك صلاحية لعرض المهام');
+        }
         
-        // جلب سجلات التغييرات
-        const { data: logs, error: logsError } = await supabase
-          .from('task_logs')
-          .select(`
-            *,
-            user:user_id(id, full_name, email, role)
-          `)
-          .eq('task_id', taskId)
-          .order('created_at', { ascending: false });
+        try {
+          // جلب بيانات المهمة الأساسية
+          const { data, error } = await supabase
+            .from('tasks')
+            .select(`
+              *,
+              creator:created_by(id, full_name, email, role),
+              assignee:assigned_to(id, full_name, email, role),
+              branch:branch_id(id, name, code)
+            `)
+            .eq('id', taskId)
+            .single();
+            
+          if (error) throw error;
           
-        if (logsError) throw logsError;
-        
-        // جلب المرفقات
-        const { data: attachments, error: attachmentsError } = await supabase
-          .from('task_attachments')
-          .select(`
-            *,
-            user:uploaded_by(id, full_name, email, role)
-          `)
-          .eq('task_id', taskId)
-          .order('uploaded_at', { ascending: false });
+          // التحقق من صلاحية الوصول للمهمة
+          if (!hasPermission('view:tasks:all') && 
+              !hasPermission('view:tasks') &&
+              !hasPermission('view:tasks:own') && 
+              data.created_by !== dbUser?.id && 
+              !hasPermission('view:tasks:assigned') && 
+              data.assigned_to !== dbUser?.id) {
+            throw new Error('ليس لديك صلاحية للوصول إلى هذه المهمة');
+          }
           
-        if (attachmentsError) throw attachmentsError;
-        
-        return {
-          ...task,
-          logs: logs || [],
-          attachments: attachments || []
-        };
+          // جلب سجلات التغييرات
+          const { data: logs, error: logsError } = await supabase
+            .from('task_logs')
+            .select(`
+              *,
+              user:user_id(id, full_name, email, role)
+            `)
+            .eq('task_id', taskId)
+            .order('created_at', { ascending: false });
+            
+          if (logsError) throw logsError;
+          
+          // جلب المرفقات
+          const { data: attachments, error: attachmentsError } = await supabase
+            .from('task_attachments')
+            .select(`
+              *,
+              user:uploaded_by(id, full_name, email, role)
+            `)
+            .eq('task_id', taskId)
+            .order('uploaded_at', { ascending: false });
+            
+          if (attachmentsError) throw attachmentsError;
+          
+          // جلب سجلات الوقت المسجل
+          const { data: timeRecords, error: timeError } = await supabase.rpc(
+            'get_task_time_records',
+            { task_id: taskId }
+          );
+          
+          if (timeError) {
+            console.warn('Error fetching time records:', timeError);
+            // نتجاهل الخطأ ونستمر بالتنفيذ مع بيانات فارغة
+          }
+          
+          return {
+            ...data,
+            logs: logs || [],
+            attachments: attachments || [],
+            timeRecords: timeRecords || []
+          };
+        } catch (error) {
+          console.error('Error fetching task details:', error);
+          throw error;
+        }
       },
-      enabled: !!taskId && !!dbUser?.id
+      enabled: !!taskId && !!dbUser?.id,
+      staleTime: 1000 * 60, // دقيقة واحدة
+      refetchOnWindowFocus: true
     });
   };
 
@@ -76,6 +111,11 @@ export function useTaskActions() {
    */
   const createTask = useMutation({
     mutationFn: async (taskData: TaskFormData) => {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('create:tasks') && !hasPermission('create:tasks:own')) {
+        throw new Error('ليس لديك صلاحية لإنشاء مهام');
+      }
+      
       if (!dbUser?.id) throw new Error('يجب تسجيل الدخول لإنشاء مهمة');
       
       const { data, error } = await supabase
@@ -116,6 +156,12 @@ export function useTaskActions() {
    */
   const updateTask = useMutation({
     mutationFn: async (taskUpdate: TaskUpdate) => {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('edit:tasks') && 
+          !(hasPermission('edit:tasks:own') && await isTaskOwner(taskUpdate.id))) {
+        throw new Error('ليس لديك صلاحية لتعديل هذه المهمة');
+      }
+      
       if (!dbUser?.id) throw new Error('يجب تسجيل الدخول لتحديث المهمة');
       
       const { id, ...updateData } = taskUpdate;
@@ -162,21 +208,23 @@ export function useTaskActions() {
    */
   const updateTaskStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string, status: Task['status'] }) => {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('edit:tasks') && 
+          !(hasPermission('edit:tasks:own') && await isTaskOwner(id)) &&
+          !(hasPermission('complete:tasks:own') && await isTaskAssignee(id))) {
+        throw new Error('ليس لديك صلاحية لتحديث حالة المهمة');
+      }
+      
       if (!dbUser?.id) throw new Error('يجب تسجيل الدخول لتحديث حالة المهمة');
       
       setLoading(prev => ({ ...prev, [`status_${id}`]: true }));
       
-      const { data, error } = await supabase
-        .from('tasks')
-        .update({ 
-          status, 
-          completion_date: status === 'completed' ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-        .select()
-        .single();
-        
+      const { data, error } = await supabase.rpc('update_task_status', {
+        p_task_id: id,
+        p_status: status,
+        p_completion_date: status === 'completed' ? new Date().toISOString() : null
+      });
+
       if (error) throw error;
       
       setLoading(prev => ({ ...prev, [`status_${id}`]: false }));
@@ -218,6 +266,11 @@ export function useTaskActions() {
    */
   const addTaskComment = useMutation({
     mutationFn: async (comment: TaskComment) => {
+      // التحقق من صلاحيات المستخدم
+      if (!await canAccessTask(comment.task_id)) {
+        throw new Error('ليس لديك صلاحية للتعليق على هذه المهمة');
+      }
+      
       if (!dbUser?.id) throw new Error('يجب تسجيل الدخول لإضافة تعليق');
       
       setLoading(prev => ({ ...prev, [`comment_${comment.task_id}`]: true }));
@@ -259,6 +312,12 @@ export function useTaskActions() {
    */
   const deleteTask = useMutation({
     mutationFn: async (id: string) => {
+      // التحقق من صلاحيات المستخدم
+      if (!hasPermission('delete:tasks') && 
+          !(hasPermission('delete:tasks:own') && await isTaskOwner(id))) {
+        throw new Error('ليس لديك صلاحية لحذف هذه المهمة');
+      }
+      
       if (!dbUser?.id) throw new Error('يجب تسجيل الدخول لحذف المهمة');
       
       setLoading(prev => ({ ...prev, [`delete_${id}`]: true }));
@@ -300,6 +359,11 @@ export function useTaskActions() {
    */
   const uploadTaskAttachment = useMutation({
     mutationFn: async ({ taskId, file }: { taskId: string, file: File }) => {
+      // التحقق من صلاحيات المستخدم
+      if (!await canAccessTask(taskId)) {
+        throw new Error('ليس لديك صلاحية لرفع مرفقات لهذه المهمة');
+      }
+      
       if (!dbUser?.id) throw new Error('يجب تسجيل الدخول لرفع مرفق');
       
       setLoading(prev => ({ ...prev, [`upload_${taskId}`]: true }));
@@ -370,6 +434,11 @@ export function useTaskActions() {
    */
   const deleteTaskAttachment = useMutation({
     mutationFn: async ({ id, taskId, fileUrl }: { id: string, taskId: string, fileUrl: string }) => {
+      // التحقق من صلاحيات المستخدم
+      if (!await canAccessTask(taskId)) {
+        throw new Error('ليس لديك صلاحية لحذف مرفقات من هذه المهمة');
+      }
+      
       if (!dbUser?.id) throw new Error('يجب تسجيل الدخول لحذف المرفق');
       
       setLoading(prev => ({ ...prev, [`delete_attachment_${id}`]: true }));
@@ -418,6 +487,111 @@ export function useTaskActions() {
       });
     }
   });
+  
+  /**
+   * حفظ وقت مسجل
+   */
+  const saveTimeRecord = useMutation({
+    mutationFn: async (timeData: TaskTimeRecord) => {
+      // التحقق من صلاحيات المستخدم
+      if (!await canAccessTask(timeData.taskId)) {
+        throw new Error('ليس لديك صلاحية لتسجيل وقت لهذه المهمة');
+      }
+      
+      if (!dbUser?.id) throw new Error('يجب تسجيل الدخول لتسجيل وقت المهمة');
+      
+      setLoading(prev => ({ ...prev, [`time_${timeData.taskId}`]: true }));
+      
+      const { data, error } = await supabase.rpc('save_task_time_record', {
+        p_task_id: timeData.taskId,
+        p_user_id: dbUser.id,
+        p_duration: timeData.duration,
+        p_notes: timeData.notes || null
+      });
+      
+      if (error) throw error;
+      
+      setLoading(prev => ({ ...prev, [`time_${timeData.taskId}`]: false }));
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      toast({
+        title: 'تم الحفظ',
+        description: 'تم حفظ الوقت المسجل بنجاح',
+        type: 'success'
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['task', variables.taskId] });
+    },
+    onError: (error, variables) => {
+      console.error('Error saving time record:', error);
+      setLoading(prev => ({ ...prev, [`time_${variables.taskId}`]: false }));
+      
+      toast({
+        title: 'خطأ',
+        description: error instanceof Error ? error.message : 'فشل في حفظ الوقت المسجل',
+        type: 'error'
+      });
+    }
+  });
+
+  // وظائف مساعدة للتحقق من الصلاحيات
+  
+  /**
+   * التحقق ما إذا كان المستخدم هو مالك المهمة
+   */
+  const isTaskOwner = async (taskId: string) => {
+    if (!dbUser?.id) return false;
+    
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('created_by')
+      .eq('id', taskId)
+      .single();
+      
+    if (error || !data) return false;
+    return data.created_by === dbUser.id;
+  };
+  
+  /**
+   * التحقق ما إذا كان المستخدم هو المكلف بالمهمة
+   */
+  const isTaskAssignee = async (taskId: string) => {
+    if (!dbUser?.id) return false;
+    
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('assigned_to')
+      .eq('id', taskId)
+      .single();
+      
+    if (error || !data) return false;
+    return data.assigned_to === dbUser.id;
+  };
+  
+  /**
+   * التحقق من صلاحية الوصول إلى المهمة
+   */
+  const canAccessTask = async (taskId: string) => {
+    if (!dbUser?.id) return false;
+    
+    // المدير لديه وصول إلى كل المهام
+    if (hasPermission('view:tasks:all') || hasPermission('view:tasks')) {
+      return true;
+    }
+    
+    // التحقق ما إذا كان المستخدم هو مالك المهمة
+    if (hasPermission('view:tasks:own') && await isTaskOwner(taskId)) {
+      return true;
+    }
+    
+    // التحقق ما إذا كان المستخدم هو المكلف بالمهمة
+    if (hasPermission('view:tasks:assigned') && await isTaskAssignee(taskId)) {
+      return true;
+    }
+    
+    return false;
+  };
 
   return {
     loading,
@@ -429,6 +603,10 @@ export function useTaskActions() {
     addTaskComment: addTaskComment.mutate,
     deleteTask: deleteTask.mutate,
     uploadTaskAttachment: uploadTaskAttachment.mutate,
-    deleteTaskAttachment: deleteTaskAttachment.mutate
+    deleteTaskAttachment: deleteTaskAttachment.mutate,
+    saveTimeRecord: saveTimeRecord.mutate,
+    isTaskOwner,
+    isTaskAssignee,
+    canAccessTask
   };
 }

@@ -1,6 +1,6 @@
 import { Task, TaskLog, TaskAttachment, TaskStatus, TaskPriority, User, Branch, TaskComment, TaskNotification, TaskReport } from '../../../types/database';
 
-export type { Task, TaskLog, TaskAttachment, TaskStatus, TaskPriority, TaskComment,   };
+export type { Task, TaskLog, TaskAttachment, TaskStatus, TaskPriority, TaskComment };
 
 // واجهات إضافية خاصة بنظام المهام
 
@@ -75,6 +75,16 @@ export interface TaskSummary {
   createdByMe: number;
 }
 
+export interface TaskTimeRecord {
+  id?: string;
+  taskId: string;
+  userId?: string;
+  duration: number; // بالثواني
+  notes?: string;
+  created_at?: string;
+  user?: User;
+}
+
 interface TaskWithRelations extends Task {
   creator?: User;
   assignee?: User;
@@ -83,6 +93,9 @@ interface TaskWithRelations extends Task {
   attachments?: TaskAttachment[];
   comments?: TaskComment[];
   notifications?: TaskNotification[];
+  timeRecords?: TaskTimeRecord[];
+  commentsCount?: number;
+  attachmentsCount?: number;
 }
 
 interface TaskLogWithRelations extends TaskLog {

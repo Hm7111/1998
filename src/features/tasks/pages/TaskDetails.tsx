@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
@@ -13,10 +13,14 @@ import {
   Building,
   Flag,
   MessageSquare,
-  Pause
+  Pause,
+  ChevronDown,
+  FileText,
+  BarChartHorizontal,
+  Timer
 } from 'lucide-react';
 import { useTaskActions } from '../hooks/useTaskActions';
-import { TaskStatus, TaskComment } from '../types';
+import { TaskStatus, TaskComment, TaskPriority } from '../types';
 import { TaskStatusBadge } from '../components/TaskStatusBadge';
 import { TaskPriorityBadge } from '../components/TaskPriorityBadge';
 import { TaskTimeline } from '../components/TaskTimeline';
@@ -26,18 +30,20 @@ import { useToast } from '../../../hooks/useToast';
 import { useAuth } from '../../../lib/auth';
 import { TaskForm } from '../components/TaskForm';
 import { NotificationBadge } from '../../notifications/components';
+import { TaskTimeTracker } from '../components/TaskTimeTracker';
 
 /**
- * صفحة عرض تفاصيل المهمة
+ * صفحة عرض تفاصيل المهمة المحسنة
  */
 export function TaskDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isAdmin, dbUser } = useAuth();
+  const { isAdmin, dbUser, hasPermission } = useAuth();
   
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [currentTab, setCurrentTab] = useState<'details' | 'activity' | 'attachments' | 'timeTracking'>('details');
   
   const {
     useTaskDetails,
@@ -47,7 +53,8 @@ export function TaskDetails() {
     deleteTask,
     uploadTaskAttachment,
     deleteTaskAttachment,
-    loading
+    loading,
+    saveTimeRecord
   } = useTaskActions();
   
   // جلب تفاصيل المهمة
@@ -60,7 +67,9 @@ export function TaskDetails() {
     return date.toLocaleDateString('ar-SA', {
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
   
@@ -97,7 +106,7 @@ export function TaskDetails() {
   
   // التحقق من صلاحيات التعديل
   const canEdit = () => {
-    return isAdmin || isCreator();
+    return isAdmin || isCreator() || (isAssignee() && hasPermission('edit:tasks:own'));
   };
   
   // التحقق من صلاحيات الحذف
@@ -107,6 +116,11 @@ export function TaskDetails() {
   
   // التحقق من صلاحيات تغيير الحالة
   const canChangeStatus = () => {
+    return isAdmin || isAssignee() || (isCreator() && hasPermission('edit:tasks:own'));
+  };
+  
+  // التحقق من صلاحيات تتبع الوقت
+  const canTrackTime = () => {
     return isAdmin || isAssignee();
   };
   
@@ -230,40 +244,85 @@ export function TaskDetails() {
       }
     });
   };
+  
+  // حفظ وقت العمل
+  const handleSaveTimeRecord = async (taskId: string, seconds: number, notes?: string) => {
+    if (!canTrackTime()) return;
+    
+    try {
+      await saveTimeRecord({
+        taskId,
+        duration: seconds,
+        notes
+      });
+      
+      refetch();
+    } catch (error) {
+      console.error('Error saving time record:', error);
+      throw error;
+    }
+  };
+  
+  // حساب إجمالي الوقت المسجل (بالساعات)
+  const calculateTotalTimeSpent = () => {
+    if (!task?.timeRecords || task.timeRecords.length === 0) return 0;
+    
+    const totalSeconds = task.timeRecords.reduce((total, record) => total + record.duration, 0);
+    return totalSeconds / 3600; // تحويل من ثواني إلى ساعات
+  };
 
   if (isLoading) {
     return (
-      <div className="p-6 flex justify-center items-center min-h-[50vh]">
+      <div className="p-6 flex justify-center items-center h-[70vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-t-primary border-b-transparent border-l-primary border-r-transparent"></div>
       </div>
     );
   }
 
-  if (error || !task) {
+  if (error) {
     return (
       <div className="p-6">
-        <div className="flex items-center gap-x-2 mb-4">
+        <div className="flex items-center gap-x-2 mb-6">
           <button
             onClick={() => navigate('/admin/tasks')}
-            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+            className="text-gray-600 hover:text-gray-900"
           >
             <ArrowRight className="h-5 w-5" />
           </button>
           <h1 className="text-2xl font-bold">تفاصيل المهمة</h1>
         </div>
         
-        <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-6 text-center">
-          <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-500" />
-          <h2 className="text-xl font-bold mb-2 text-red-700 dark:text-red-300">حدث خطأ</h2>
-          <p className="text-red-600 dark:text-red-400">
-            لم نتمكن من تحميل تفاصيل المهمة. يرجى المحاولة مرة أخرى.
-          </p>
+        <div className="bg-red-50 text-red-600 p-6 rounded-lg text-center flex flex-col items-center">
+          <AlertTriangle className="h-16 w-16 mb-4" />
+          <h2 className="text-xl font-bold mb-2">لا يمكن العثور على المهمة</h2>
+          <p className="mb-4">الرجاء التأكد من الرابط أو أن المهمة لم تحذف</p>
           <button
-            onClick={() => refetch()}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            onClick={() => navigate('/admin/tasks')}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg"
           >
-            إعادة المحاولة
+            العودة للخلف
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!task) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center gap-x-2 mb-6">
+          <button
+            onClick={() => navigate('/admin/tasks')}
+            className="text-gray-600 hover:text-gray-900"
+          >
+            <ArrowRight className="h-5 w-5" />
+          </button>
+          <h1 className="text-2xl font-bold">تفاصيل المهمة</h1>
+        </div>
+        
+        <div className="bg-red-50 text-red-600 p-6 rounded-lg text-center">
+          <h2 className="text-xl font-bold mb-2">لا يمكن العثور على المهمة</h2>
+          <p>المهمة غير موجودة أو ليس لديك صلاحية الوصول إليها</p>
         </div>
       </div>
     );
@@ -295,329 +354,566 @@ export function TaskDetails() {
     );
   }
 
-  return (
-    <div className="p-6">
-      {/* نافذة تأكيد الحذف */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6">
-            <div className="text-center mb-6">
-              <div className="mx-auto h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
-                <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
-              </div>
-              <h3 className="text-lg font-bold mb-2">تأكيد الحذف</h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                هل أنت متأكد من رغبتك في حذف هذه المهمة؟ هذا الإجراء لا يمكن التراجع عنه.
-              </p>
+  // نافذة تأكيد الحذف
+  if (showDeleteConfirm) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full">
+          <div className="text-center mb-6">
+            <div className="mx-auto h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
+              <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
             </div>
-            
-            <div className="flex justify-center gap-3">
-              <button
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg"
-                onClick={() => setShowDeleteConfirm(false)}
-              >
-                إلغاء
-              </button>
-              <button
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
-                onClick={handleDeleteTask}
-                disabled={loading[`delete_${id}`] || false}
-              >
-                {loading[`delete_${id}`] ? (
-                  <>
-                    <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    <span>جارِ الحذف...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="h-4 w-4" />
-                    <span>تأكيد الحذف</span>
-                  </>
-                )}
-              </button>
-            </div>
+            <h3 className="text-lg font-bold mb-2">تأكيد الحذف</h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              هل أنت متأكد من رغبتك في حذف هذه المهمة؟ هذا الإجراء لا يمكن التراجع عنه.
+            </p>
+          </div>
+          
+          <div className="flex justify-center gap-3">
+            <button
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg"
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              إلغاء
+            </button>
+            <button
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
+              onClick={handleDeleteTask}
+              disabled={loading[`delete_${id}`] || false}
+            >
+              {loading[`delete_${id}`] ? (
+                <>
+                  <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  <span>جارِ الحذف...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  <span>تأكيد الحذف</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      <div className="flex items-center gap-x-2 mb-6">
-        <button
-          onClick={() => navigate('/admin/tasks')}
-          className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          <ArrowRight className="h-5 w-5" />
-        </button>
-        <h1 className="text-2xl font-bold">تفاصيل المهمة</h1>
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-x-2">
+          <button
+            onClick={() => navigate('/admin/tasks')}
+            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <ArrowRight className="h-5 w-5" />
+          </button>
+          <h1 className="text-2xl font-bold">تفاصيل المهمة</h1>
+          <TaskStatusBadge status={task.status} size="md" className="mr-2" />
+        </div>
+        <div className="flex items-center gap-2">
+          <NotificationBadge />
+          
+          {canEdit() && (
+            <button
+              onClick={() => setShowEditForm(true)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+              title="تعديل المهمة"
+            >
+              <Edit className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            </button>
+          )}
+          
+          {canDelete() && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+              title="حذف المهمة"
+            >
+              <Trash2 className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* العمود الأيمن - تفاصيل المهمة */}
+        {/* العمود الرئيسي */}
         <div className="md:col-span-2 space-y-6">
-          {/* تفاصيل المهمة */}
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h2 className="text-xl font-bold">{task.title}</h2>
-                <div className="flex items-center gap-2 flex-wrap mt-2">
-                  <TaskStatusBadge status={task.status} size="md" />
-                  <TaskPriorityBadge priority={task.priority} size="md" />
-                  
-                  {isOverdue() && (
-                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">
-                      <Clock className="h-3.5 w-3.5" />
-                      متأخرة
+          {/* بطاقة التبويب */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 overflow-hidden">
+            <div className="border-b dark:border-gray-800 p-0">
+              <div className="flex overflow-x-auto">
+                <button
+                  className={`px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 ${
+                    currentTab === 'details' ? 'border-primary text-primary' : 'border-transparent'
+                  }`}
+                  onClick={() => setCurrentTab('details')}
+                >
+                  <FileText className="inline-block h-4 w-4 mr-2" />
+                  التفاصيل
+                </button>
+                <button
+                  className={`px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 ${
+                    currentTab === 'activity' ? 'border-primary text-primary' : 'border-transparent'
+                  }`}
+                  onClick={() => setCurrentTab('activity')}
+                >
+                  <Clock className="inline-block h-4 w-4 mr-2" />
+                  سجل النشاط
+                </button>
+                <button
+                  className={`px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 ${
+                    currentTab === 'attachments' ? 'border-primary text-primary' : 'border-transparent'
+                  }`}
+                  onClick={() => setCurrentTab('attachments')}
+                >
+                  <Paperclip className="inline-block h-4 w-4 mr-2" />
+                  المرفقات
+                  {(task.attachments?.length || 0) > 0 && (
+                    <span className="inline-block ml-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-xs rounded-full">
+                      {task.attachments?.length}
                     </span>
                   )}
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <NotificationBadge />
-                
-                {canEdit() && (
+                </button>
+                {canTrackTime() && (
                   <button
-                    onClick={() => setShowEditForm(true)}
-                    className="p-2 text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md"
-                    title="تعديل المهمة"
+                    className={`px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 ${
+                      currentTab === 'timeTracking' ? 'border-primary text-primary' : 'border-transparent'
+                    }`}
+                    onClick={() => setCurrentTab('timeTracking')}
                   >
-                    <Edit className="h-5 w-5" />
-                  </button>
-                )}
-                
-                {canDelete() && (
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md"
-                    title="حذف المهمة"
-                  >
-                    <Trash2 className="h-5 w-5" />
+                    <Timer className="inline-block h-4 w-4 mr-2" />
+                    تتبع الوقت
                   </button>
                 )}
               </div>
             </div>
             
-            {task.description && (
-              <div className="my-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                  {task.description}
-                </p>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                  <User className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">المكلف بالمهمة</p>
-                  <p className="font-medium">{task.assignee?.full_name || 'غير محدد'}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                  <User className="h-4 w-4 text-green-600 dark:text-green-300" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">منشئ المهمة</p>
-                  <p className="font-medium">{task.creator?.full_name || 'غير معروف'}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
-                  <Building className="h-4 w-4 text-purple-600 dark:text-purple-300" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">الفرع</p>
-                  <p className="font-medium">{task.branch?.name || 'غير محدد'}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
-                  <Flag className="h-4 w-4 text-orange-600 dark:text-orange-300" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">الأولوية</p>
-                  <p className="font-medium">
-                    {task.priority === 'high' ? 'عالية' : 
-                     task.priority === 'medium' ? 'متوسطة' : 'منخفضة'}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
-                  <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-300" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">تاريخ الإنشاء</p>
-                  <p className="font-medium">{formatDate(task.created_at)} - {formatTime(task.created_at)}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center flex-shrink-0">
-                  <Calendar className="h-4 w-4 text-pink-600 dark:text-pink-300" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">تاريخ الاستحقاق</p>
-                  <p className={`font-medium ${isOverdue() ? 'text-red-600 dark:text-red-400' : ''}`}>
-                    {formatDate(task.due_date)}
-                  </p>
-                </div>
-              </div>
-              
-              {task.completion_date && (
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-300" />
-                  </div>
+            {/* محتوى التبويب */}
+            <div className="p-6">
+              {currentTab === 'details' && (
+                <div className="space-y-6">
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">تاريخ الإكمال</p>
-                    <p className="font-medium">{formatDate(task.completion_date)} - {formatTime(task.completion_date)}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {task.notes && (
-              <div className="mt-6 pt-6 border-t dark:border-gray-700">
-                <h3 className="font-semibold mb-2">الملاحظات</h3>
-                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                  {task.notes}
-                </p>
-              </div>
-            )}
-            
-            {/* أزرار تغيير الحالة */}
-            {canChangeStatus() && (
-              <div className="mt-6 pt-6 border-t dark:border-gray-700">
-                <h3 className="font-semibold mb-3">تغيير حالة المهمة</h3>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleStatusChange('new')}
-                    disabled={task.status === 'new' || loading[`status_${id}`]}
-                    className="px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50"
-                  >
-                    <Clock className="h-4 w-4" />
-                    <span>جديدة</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => handleStatusChange('in_progress')}
-                    disabled={task.status === 'in_progress' || loading[`status_${id}`]}
-                    className="px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900/50 disabled:opacity-50"
-                  >
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>قيد التنفيذ</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => handleStatusChange('completed')}
-                    disabled={task.status === 'completed' || loading[`status_${id}`]}
-                    className="px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 disabled:opacity-50"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    <span>مكتملة</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => handleStatusChange('postponed')}
-                    disabled={task.status === 'postponed' || loading[`status_${id}`]}
-                    className="px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50 disabled:opacity-50"
-                  >
-                    <Pause className="h-4 w-4" />
-                    <span>مؤجلة</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => handleStatusChange('rejected')}
-                    disabled={task.status === 'rejected' || loading[`status_${id}`]}
-                    className="px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1 bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50"
-                  >
-                    <X className="h-4 w-4" />
-                    <span>مرفوضة</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* المرفقات */}
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-6">
-            <TaskAttachments
-              attachments={task.attachments || []}
-              taskId={id}
-              onUpload={handleUploadAttachment}
-              onDelete={handleDeleteAttachment}
-              isUploading={loading[`upload_${id}`] || false}
-              isDeleting={loading}
-            />
-          </div>
-          
-          {/* التعليقات */}
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-6">
-            <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
-              <MessageSquare className="h-5 w-5 text-primary" />
-              التعليقات
-              {task.logs && task.logs.filter(log => log.action === 'comment').length > 0 && (
-                <span className="text-sm bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
-                  {task.logs.filter(log => log.action === 'comment').length}
-                </span>
-              )}
-            </h3>
-            
-            <div className="space-y-4">
-              {task.logs && task.logs
-                .filter(log => log.action === 'comment')
-                .map(log => (
-                  <div key={log.id} className="flex gap-3 pb-4 border-b dark:border-gray-700 last:border-0">
-                    <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
-                      <User className="h-5 w-5 text-gray-500" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start mb-1">
-                        <div>
-                          <p className="font-medium">{log.user?.full_name || 'مستخدم'}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {new Date(log.created_at).toLocaleDateString()} • 
-                            {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                      </div>
-                      {log.notes && (
-                        <p className="mt-2 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                          {log.notes}
-                        </p>
+                    <h2 className="text-xl font-bold mb-4">{task.title}</h2>
+                    
+                    <div className="flex items-center flex-wrap gap-2 mb-4">
+                      <TaskPriorityBadge priority={task.priority} size="md" />
+                      
+                      {isOverdue() && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-medium bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">
+                          <Clock className="h-4 w-4" />
+                          متأخرة
+                        </span>
                       )}
                     </div>
+                    
+                    {task.description && (
+                      <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg mb-6">
+                        <h3 className="font-medium mb-2">وصف المهمة</h3>
+                        <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+                          {task.description}
+                        </p>
+                      </div>
+                    )}
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">المكلف بالمهمة</h3>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <User className="h-4 w-4 text-primary" />
+                          </div>
+                          <span className="font-medium">{task.assignee?.full_name || 'غير مسند'}</span>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">منشئ المهمة</h3>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                            <User className="h-4 w-4 text-green-600 dark:text-green-300" />
+                          </div>
+                          <span className="font-medium">{task.creator?.full_name || 'غير معروف'}</span>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">الفرع</h3>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                            <Building className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+                          </div>
+                          <span className="font-medium">{task.branch?.name || 'غير محدد'}</span>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">تاريخ الإنشاء</h3>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                            <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-300" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{formatDate(task.created_at)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">تاريخ الاستحقاق</h3>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-full ${
+                            isOverdue() 
+                              ? 'bg-red-100 dark:bg-red-900/30' 
+                              : 'bg-amber-100 dark:bg-amber-900/30'
+                          } flex items-center justify-center`}>
+                            <Calendar className={`h-4 w-4 ${
+                              isOverdue() 
+                                ? 'text-red-600 dark:text-red-300' 
+                                : 'text-amber-600 dark:text-amber-300'
+                            }`} />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className={`font-medium ${
+                              isOverdue() ? 'text-red-600 dark:text-red-400' : ''
+                            }`}>
+                              {task.due_date ? formatDate(task.due_date) : 'غير محدد'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {task.completion_date && (
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">تاريخ الإكمال</h3>
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                              <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-300" />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{formatDate(task.completion_date)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {task.timeRecords && task.timeRecords.length > 0 && (
+                      <div className="border dark:border-gray-700 rounded-lg p-4 mb-6">
+                        <h3 className="font-medium mb-3 flex items-center gap-2">
+                          <Timer className="h-5 w-5 text-primary" />
+                          سجل الوقت المسجل
+                        </h3>
+                        
+                        <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg mb-3">
+                          <div className="text-blue-800 dark:text-blue-300 font-medium">إجمالي الوقت المسجل</div>
+                          <div className="text-lg font-bold text-blue-800 dark:text-blue-300">
+                            {calculateTotalTimeSpent().toFixed(2)} ساعة
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {task.timeRecords.map(record => (
+                            <div 
+                              key={record.id} 
+                              className="flex justify-between items-center p-2 border-b dark:border-gray-700 last:border-0"
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                                  <User className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                                </div>
+                                <div>
+                                  <p className="font-medium">{record.user?.full_name || 'مستخدم'}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {new Date(record.created_at).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-medium">{(record.duration / 3600).toFixed(2)} ساعة</p>
+                                {record.notes && (
+                                  <p className="text-xs text-gray-500">{record.notes}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {task.notes && (
+                      <div>
+                        <h3 className="font-medium mb-2">ملاحظات</h3>
+                        <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{task.notes}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))
-              }
+                  
+                  {/* التعليقات */}
+                  <div className="pt-6 border-t dark:border-gray-800">
+                    <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
+                      <MessageSquare className="h-5 w-5 text-primary" />
+                      التعليقات
+                      {task.logs && task.logs.filter(log => log.action === 'comment').length > 0 && (
+                        <span className="text-sm bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                          {task.logs.filter(log => log.action === 'comment').length}
+                        </span>
+                      )}
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      {task.logs && task.logs
+                        .filter(log => log.action === 'comment')
+                        .map(log => (
+                          <div key={log.id} className="flex gap-3 pb-4 border-b dark:border-gray-700 last:border-0">
+                            <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+                              <User className="h-5 w-5 text-gray-500" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex justify-between items-start mb-1">
+                                <div>
+                                  <p className="font-medium">{log.user?.full_name || 'مستخدم'}</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {new Date(log.created_at).toLocaleDateString()} • 
+                                    {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                              </div>
+                              {log.notes && (
+                                <p className="mt-2 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                  {log.notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      
+                      {/* نموذج إضافة تعليق */}
+                      <TaskCommentForm
+                        taskId={id}
+                        onSubmit={handleAddComment}
+                        isLoading={loading[`comment_${id}`] || false}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
               
-              {/* نموذج إضافة تعليق */}
-              <TaskCommentForm
-                taskId={id}
-                onSubmit={handleAddComment}
-                isLoading={loading[`comment_${id}`] || false}
-              />
+              {currentTab === 'activity' && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-primary" />
+                    سجل النشاط
+                  </h3>
+                  
+                  <TaskTimeline logs={task.logs || []} />
+                </div>
+              )}
+              
+              {currentTab === 'attachments' && (
+                <div className="space-y-4">
+                  <TaskAttachments
+                    attachments={task.attachments || []}
+                    taskId={id}
+                    onUpload={handleUploadAttachment}
+                    onDelete={handleDeleteAttachment}
+                    isUploading={loading[`upload_${id}`] || false}
+                    isDeleting={loading}
+                  />
+                </div>
+              )}
+              
+              {currentTab === 'timeTracking' && canTrackTime() && (
+                <div className="space-y-6">
+                  <TaskTimeTracker 
+                    taskId={id}
+                    onSaveTime={handleSaveTimeRecord}
+                    isLoading={loading[`time_${id}`] || false}
+                  />
+                  
+                  {task.timeRecords && task.timeRecords.length > 0 && (
+                    <div className="border dark:border-gray-700 rounded-lg p-4">
+                      <h3 className="font-medium mb-4 flex items-center gap-2">
+                        <BarChartHorizontal className="h-5 w-5 text-primary" />
+                        سجل الوقت المسجل
+                      </h3>
+                      
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg mb-4 flex items-center justify-between">
+                        <span className="font-medium text-blue-800 dark:text-blue-300">إجمالي الوقت المسجل</span>
+                        <span className="text-xl font-bold text-blue-800 dark:text-blue-300">
+                          {calculateTotalTimeSpent().toFixed(2)} ساعة
+                        </span>
+                      </div>
+                      
+                      <div className="max-h-60 overflow-y-auto divide-y dark:divide-gray-700">
+                        {task.timeRecords.map(record => (
+                          <div key={record.id} className="py-3 flex justify-between">
+                            <div>
+                              <p className="font-medium">{record.user?.full_name || 'مستخدم'}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {new Date(record.created_at).toLocaleDateString()} • 
+                                {new Date(record.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                              {record.notes && (
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{record.notes}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="font-mono font-bold">{(record.duration / 3600).toFixed(2)} ساعة</p>
+                              <p className="text-xs text-gray-500">
+                                {Math.floor(record.duration / 3600)}:{Math.floor((record.duration % 3600) / 60).toString().padStart(2, '0')}:{(record.duration % 60).toString().padStart(2, '0')}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
         
-        {/* العمود الأيسر - التاريخ والنشاط */}
+        {/* الشريط الجانبي */}
         <div className="space-y-6">
-          {/* تاريخ المهمة */}
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-6">
-            <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
-              <Clock className="h-5 w-5 text-primary" />
-              سجل النشاط
-            </h3>
-            
-            <TaskTimeline logs={task.logs || []} />
+          {/* إجراءات المهمة */}
+          {canChangeStatus() && (
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-4">
+              <h3 className="font-medium mb-4">تغيير حالة المهمة</h3>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  onClick={() => handleStatusChange('new')}
+                  disabled={task.status === 'new' || loading[`status_${id}`]}
+                  className="w-full flex items-center gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-900/30 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                    <Clock className="h-3 w-3 text-blue-600 dark:text-blue-300" />
+                  </div>
+                  <span>تعيين كجديدة</span>
+                </button>
+                
+                <button
+                  onClick={() => handleStatusChange('in_progress')}
+                  disabled={task.status === 'in_progress' || loading[`status_${id}`]}
+                  className="w-full flex items-center gap-2 p-3 rounded-lg border border-yellow-200 dark:border-yellow-900/30 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="w-5 h-5 rounded-full bg-yellow-100 dark:bg-yellow-900/50 flex items-center justify-center">
+                    <AlertTriangle className="h-3 w-3 text-yellow-600 dark:text-yellow-300" />
+                  </div>
+                  <span>قيد التنفيذ</span>
+                </button>
+                
+                <button
+                  onClick={() => handleStatusChange('completed')}
+                  disabled={task.status === 'completed' || loading[`status_${id}`]}
+                  className="w-full flex items-center gap-2 p-3 rounded-lg border border-green-200 dark:border-green-900/30 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                    <CheckCircle className="h-3 w-3 text-green-600 dark:text-green-300" />
+                  </div>
+                  <span>تمت</span>
+                </button>
+                
+                <button
+                  onClick={() => handleStatusChange('postponed')}
+                  disabled={task.status === 'postponed' || loading[`status_${id}`]}
+                  className="w-full flex items-center gap-2 p-3 rounded-lg border border-purple-200 dark:border-purple-900/30 hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
+                    <Pause className="h-3 w-3 text-purple-600 dark:text-purple-300" />
+                  </div>
+                  <span>تأجيل</span>
+                </button>
+                
+                <button
+                  onClick={() => handleStatusChange('rejected')}
+                  disabled={task.status === 'rejected' || loading[`status_${id}`]}
+                  className="w-full flex items-center gap-2 p-3 rounded-lg border border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="w-5 h-5 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
+                    <X className="h-3 w-3 text-red-600 dark:text-red-300" />
+                  </div>
+                  <span>رفض</span>
+                </button>
+                
+                {loading[`status_${id}`] && (
+                  <div className="text-center mt-2">
+                    <div className="inline-block h-4 w-4 rounded-full border-2 border-primary/30 border-t-primary animate-spin"></div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* تتبع الوقت المصغر */}
+          {canTrackTime() && (
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-4">
+              <h3 className="font-medium mb-3 flex items-center gap-2">
+                <Timer className="h-5 w-5 text-primary" />
+                تتبع الوقت
+              </h3>
+              
+              <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-3">
+                <span className="text-sm font-medium">إجمالي الوقت المسجل</span>
+                <span className="font-bold text-primary">{calculateTotalTimeSpent().toFixed(2)} ساعة</span>
+              </div>
+              
+              <button
+                onClick={() => setCurrentTab('timeTracking')}
+                className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 flex items-center justify-center gap-2"
+              >
+                <Clock className="h-4 w-4" />
+                تسجيل الوقت
+              </button>
+            </div>
+          )}
+          
+          {/* أزرار الإجراءات السريعة */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-4">
+            <h3 className="font-medium mb-3">إجراءات سريعة</h3>
+            <div className="space-y-2">
+              {canEdit() && (
+                <button
+                  onClick={() => setShowEditForm(true)}
+                  className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  <Edit className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                  <span>تعديل المهمة</span>
+                </button>
+              )}
+              
+              {canTrackTime() && (
+                <button
+                  onClick={() => setCurrentTab('timeTracking')}
+                  className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-primary bg-primary/5 hover:bg-primary/10"
+                >
+                  <Timer className="h-4 w-4 text-primary" />
+                  <span>تسجيل الوقت</span>
+                </button>
+              )}
+              
+              <button
+                onClick={() => setCurrentTab('attachments')}
+                className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                <Paperclip className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                <span>إضافة مرفق</span>
+              </button>
+              
+              {canDelete() && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-700 dark:text-red-400"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>حذف المهمة</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

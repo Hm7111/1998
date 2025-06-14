@@ -15,6 +15,35 @@ export function useTaskActions() {
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   
   /**
+   * جلب سجلات المهمة
+   */
+  const getTaskLogs = useCallback(async (taskId: string): Promise<TaskLog[]> => {
+    if (!taskId) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('task_logs')
+        .select(`
+          *,
+          user:user_id (
+            id,
+            full_name,
+            email,
+            role
+          )
+        `)
+        .eq('task_id', taskId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data as TaskLog[];
+    } catch (error) {
+      console.error('Error fetching task logs:', error);
+      throw error;
+    }
+  }, []);
+
+  /**
    * جلب تفاصيل مهمة محددة مع سجلات التغييرات
    */
   const useTaskDetails = (taskId: string | undefined) => {
@@ -628,5 +657,6 @@ export function useTaskActions() {
     isTaskOwner,
     isTaskAssignee,
     canAccessTask
+    getTaskLogs
   };
 }

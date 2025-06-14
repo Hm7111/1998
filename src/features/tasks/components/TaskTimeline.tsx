@@ -8,17 +8,48 @@ import {
   User,
   Pause 
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { TaskLog, TaskStatus } from '../types';
+import { useTaskActions } from '../hooks/useTaskActions';
 
 interface TaskTimelineProps {
-  logs?: TaskLog[];
+  taskId: string;
   className?: string;
 }
 
 /**
  * مكون خط زمني لتتبع سجل المهمة
  */
-export function TaskTimeline({ logs = [], className = '' }: TaskTimelineProps) {
+export function TaskTimeline({ taskId, className = '' }: TaskTimelineProps) {
+  const [logs, setLogs] = useState<TaskLog[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { getTaskLogs } = useTaskActions();
+  
+  // تحميل سجلات المهمة عند تحميل المكون
+  useEffect(() => {
+    if (taskId) {
+      loadTaskLogs();
+    }
+  }, [taskId]);
+  
+  // تحميل سجلات المهمة
+  async function loadTaskLogs() {
+    if (!taskId) return;
+    
+    setIsLoading(true);
+    setError(null);
+    try {
+      const logsData = await getTaskLogs(taskId);
+      setLogs(logsData || []);
+    } catch (error) {
+      console.error('Error loading task logs:', error);
+      setError('حدث خطأ أثناء تحميل سجلات المهمة');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+  
   // تنسيق التاريخ
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -92,6 +123,41 @@ export function TaskTimeline({ logs = [], className = '' }: TaskTimelineProps) {
         };
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 p-4 rounded-lg">
+        <div className="flex items-start">
+          <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-red-800 dark:text-red-300">{error}</h3>
+            <div className="mt-2">
+              <button
+                onClick={loadTaskLogs}
+                className="text-sm text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 px-3 py-1 rounded-md flex items-center gap-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                  <path d="M3 3v5h5"></path>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                  <path d="M16 21h5v-5"></path>
+                </svg>
+                إعادة المحاولة
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`space-y-8 ${className}`}>

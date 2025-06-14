@@ -687,7 +687,7 @@ export function TaskDetails() {
               {currentTab === 'activity' && (
                 <div>
                   <h3 className="font-medium mb-4">سجل النشاط</h3>
-                  <TaskTimeline taskId={id!} />
+                  <TaskTimeline taskId={id || ''} />
                   
                   {/* نموذج إضافة تعليق */}
                   <div className="mt-6 pt-6 border-t dark:border-gray-700">

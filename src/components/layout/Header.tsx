@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/auth'
 import { useToast } from '../../hooks/useToast'
 import { useWorkflow } from '../../hooks/useWorkflow'
 import { useQuery } from '@tanstack/react-query'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export function Header() {
   const { theme, setTheme } = useThemeStore()
@@ -83,7 +84,14 @@ export function Header() {
       {/* نافذة اختصارات لوحة المفاتيح */}
       {showShortcuts && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50\" onClick={() => setShowShortcuts(false)}>
-          <div className="bg-white dark:bg-gray-900 max-w-md w-full rounded-lg shadow-lg overflow-hidden\" onClick={e => e.stopPropagation()}>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+            className="bg-white dark:bg-gray-900 max-w-md w-full rounded-lg shadow-lg overflow-hidden\" 
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between p-4 border-b dark:border-gray-800">
               <h2 className="text-lg font-semibold">اختصارات لوحة المفاتيح</h2>
               <button onClick={() => setShowShortcuts(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
@@ -118,76 +126,107 @@ export function Header() {
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
 
       {/* نافذة الإشعارات */}
-      {showNotifications && (
-        <div className="fixed top-16 left-4 z-50 w-80 bg-white dark:bg-gray-900 rounded-lg border dark:border-gray-800 shadow-lg overflow-hidden">
-          <div className="p-3 border-b dark:border-gray-800 flex items-center justify-between">
-            <h3 className="font-semibold">الإشعارات</h3>
-            <button onClick={() => setShowNotifications(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 rounded-full">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          
-          <div className="max-h-96 overflow-y-auto">
-            {pendingApprovals.length === 0 ? (
-              <div className="text-center py-8 px-4 text-gray-500 dark:text-gray-400">
-                <Bell className="h-8 w-8 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-                <p>لا توجد إشعارات جديدة</p>
-              </div>
-            ) : (
-              <div className="divide-y dark:divide-gray-800">
-                {pendingApprovals.map((approval) => (
-                  <div key={approval.request_id} className="p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                        <Bell className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div>
-                        <p className="font-medium mb-1">طلب موافقة جديد</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          طلب موافقة على خطاب "{approval.letter_subject}" من {approval.requester_name}
-                        </p>
-                        <div className="mt-2">
-                          <button
-                            onClick={() => {
-                              setShowNotifications(false);
-                              navigate('/admin/approvals');
-                            }}
-                            className="text-primary text-sm hover:underline"
-                          >
-                            عرض التفاصيل
-                          </button>
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                          {new Date(approval.requested_at).toLocaleString('ar-SA')}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          
-          {pendingApprovals.length > 0 && (
-            <div className="p-3 border-t dark:border-gray-800">
-              <button
-                onClick={() => {
-                  setShowNotifications(false);
-                  navigate('/admin/approvals');
-                }}
-                className="w-full p-2 bg-primary text-white rounded-lg text-sm"
-              >
-                عرض جميع الإشعارات
+      <AnimatePresence>
+        {showNotifications && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="fixed top-16 left-4 z-50 w-80 bg-white dark:bg-gray-900 rounded-lg border dark:border-gray-800 shadow-lg overflow-hidden"
+          >
+            <div className="p-3 border-b dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-primary/10 to-transparent">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Bell className="h-4 w-4 text-primary" />
+                الإشعارات
+                {unreadNotifications > 0 && (
+                  <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                    {unreadNotifications}
+                  </span>
+                )}
+              </h3>
+              <button onClick={() => setShowNotifications(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+                <X className="h-4 w-4" />
               </button>
             </div>
-          )}
-        </div>
-      )}
+            
+            <div className="max-h-96 overflow-y-auto">
+              {pendingApprovals.length === 0 ? (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-center py-8 px-4 text-gray-500 dark:text-gray-400"
+                >
+                  <Bell className="h-8 w-8 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+                  <p>لا توجد إشعارات جديدة</p>
+                </motion.div>
+              ) : (
+                <div className="divide-y dark:divide-gray-800">
+                  {pendingApprovals.map((approval, index) => (
+                    <motion.div 
+                      key={approval.request_id} 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.05 * index }}
+                      className="p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-900/20 flex items-center justify-center flex-shrink-0">
+                          <Bell className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium mb-1">طلب موافقة جديد</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            طلب موافقة على خطاب "{approval.letter_subject}" من {approval.requester_name}
+                          </p>
+                          <div className="mt-2 flex justify-between items-center">
+                            <button
+                              onClick={() => {
+                                setShowNotifications(false);
+                                navigate('/admin/approvals');
+                              }}
+                              className="text-primary text-sm hover:underline flex items-center gap-1"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              عرض التفاصيل
+                            </button>
+                            <p className="text-xs text-gray-500 dark:text-gray-500">
+                              {new Date(approval.requested_at).toLocaleString('ar-SA', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {pendingApprovals.length > 0 && (
+              <div className="p-3 border-t dark:border-gray-800 bg-gradient-to-r from-primary/5 to-transparent">
+                <button
+                  onClick={() => {
+                    setShowNotifications(false);
+                    navigate('/admin/approvals');
+                  }}
+                  className="w-full p-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90 transition-colors"
+                >
+                  عرض جميع الإشعارات
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     
       <header className="bg-white shadow-sm dark:bg-gray-800 sticky top-0 z-30 transition-colors duration-300">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -199,10 +238,23 @@ export function Header() {
             >
               {showMobileMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
+
+            {/* الترحيب بالمستخدم - إضافة جديدة */}
+            <div className="hidden md:flex flex-col">
+              <h2 className="font-bold text-lg">{getGreeting()}, {dbUser?.full_name}</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {new Date().toLocaleDateString('ar-SA', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </p>
+            </div>
           </div>
           
           {/* شريط البحث في الوسط */}
-          <div className="hidden md:flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-gray-700/50 rounded-lg w-1/3 max-w-md">
+          <div className="hidden md:flex items-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-gray-700/50 rounded-full w-1/3 max-w-md border border-transparent focus-within:border-primary/20 focus-within:bg-white dark:focus-within:bg-gray-700 transition-all duration-200">
             <Search className="h-4 w-4 text-gray-500 dark:text-gray-400" />
             <input
               type="text"
@@ -215,11 +267,13 @@ export function Header() {
           </div>
           
           <div className="flex items-center gap-x-1.5">
-            <button
+            <motion.button
               id="keyboard-shortcuts"
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group relative text-gray-500 dark:text-gray-400"
               title="اختصارات لوحة المفاتيح (Ctrl+K)"
               onClick={() => setShowShortcuts(true)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
             >
               <Keyboard className="h-5 w-5" />
               <div className="help-tooltip -bottom-24 left-1/2 -translate-x-1/2 w-48">
@@ -230,54 +284,69 @@ export function Header() {
                   </p>
                 </div>
               </div>
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
               id="help-guide"
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group relative text-gray-500 dark:text-gray-400"
               title="دليل المستخدم (Ctrl+H)"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
             >
               <HelpCircle className="h-5 w-5" />
               <div className="help-tooltip -bottom-12 left-1/2 -translate-x-1/2 whitespace-nowrap">
                 عرض دليل المستخدم
               </div>
-            </button>
+            </motion.button>
             
             {hasPermission('view:approvals') && (
-              <button
+              <motion.button
                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group relative text-gray-500 dark:text-gray-400"
                 onClick={() => setShowNotifications(!showNotifications)}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
               >
                 <div className="relative">
                   <Bell className="h-5 w-5" />
-                  {unreadNotifications > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs flex items-center justify-center rounded-full">
-                      {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                    </span>
-                  )}
+                  <AnimatePresence>
+                    {unreadNotifications > 0 && (
+                      <motion.span 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                        className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs flex items-center justify-center rounded-full"
+                      >
+                        {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </div>
-              </button>
+              </motion.button>
             )}
 
-            <button
+            <motion.button
               onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 group relative text-gray-500 dark:text-gray-400"
               title="تبديل المظهر (Ctrl+D)"
+              whileHover={{ rotate: 180 }}
+              transition={{ duration: 0.3 }}
             >
               {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
               <div className="help-tooltip -bottom-12 left-1/2 -translate-x-1/2 whitespace-nowrap">
                 {theme === 'light' ? 'تفعيل الوضع الليلي' : 'تفعيل الوضع النهاري'}
               </div>
-            </button>
+            </motion.button>
 
             {/* قائمة المستخدم */}
             <div className="relative">
-              <button
+              <motion.button
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="flex items-center gap-2 text-sm ml-3 p-1.5 rounded-full overflow-hidden hover:bg-gray-100 dark:hover:bg-gray-700 relative"
                 title="حساب المستخدم"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 text-primary flex items-center justify-center">
                   <User className="h-4 w-4" />
                 </div>
                 <span className="hidden sm:block font-medium truncate max-w-[100px]">
@@ -288,46 +357,74 @@ export function Header() {
                     {dbUser.branch.code}
                   </span>
                 )}
-              </button>
+              </motion.button>
               
-              {showUserMenu && (
-                <div className="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-gray-900 rounded-lg border dark:border-gray-800 shadow-lg overflow-hidden z-50">
-                  <div className="p-3 border-b dark:border-gray-800">
-                    <p className="font-medium">{dbUser?.full_name || 'المستخدم'}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{dbUser?.email}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 inline-block px-2 py-0.5 rounded-full">
-                        {dbUser?.role === 'admin' ? 'مدير' : 'مستخدم'}
-                      </p>
-                      {dbUser?.branch && (
-                        <p className="text-xs bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 inline-block px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Building className="h-3 w-3" />
-                          {dbUser.branch.name} ({dbUser.branch.code})
+              <AnimatePresence>
+                {showUserMenu && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute left-0 top-full mt-1 w-72 bg-white dark:bg-gray-900 rounded-lg border dark:border-gray-800 shadow-lg overflow-hidden z-50"
+                  >
+                    <div className="p-4 border-b dark:border-gray-800 bg-gradient-to-r from-primary/5 to-transparent">
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                      >
+                        <p className="font-medium text-lg">{dbUser?.full_name || 'المستخدم'}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{dbUser?.email}</p>
+                      </motion.div>
+                      <motion.div 
+                        className="flex items-center gap-2 mt-2"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.2 }}
+                      >
+                        <p className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 inline-block px-2 py-0.5 rounded-full">
+                          {dbUser?.role === 'admin' ? 'مدير' : 'مستخدم'}
                         </p>
-                      )}
+                        {dbUser?.branch && (
+                          <p className="text-xs bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 inline-block px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Building className="h-3 w-3" />
+                            {dbUser.branch.name} ({dbUser.branch.code})
+                          </p>
+                        )}
+                      </motion.div>
                     </div>
-                  </div>
-                  
-                  <div className="py-1">
-                    <Link
-                      to="/admin/settings"
-                      className="flex items-center gap-x-2 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
-                      onClick={() => setShowUserMenu(false)}
-                    >
-                      <Settings className="h-4 w-4" />
-                      الإعدادات
-                    </Link>
                     
-                    <button
-                      onClick={handleLogout}
-                      className="w-full text-right flex items-center gap-x-2 px-3 py-2 text-sm text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      تسجيل الخروج
-                    </button>
-                  </div>
-                </div>
-              )}
+                    <div className="py-1">
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                      >
+                        <Link
+                          to="/admin/settings"
+                          className="flex items-center gap-x-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <Settings className="h-4 w-4 text-gray-500" />
+                          <span>الإعدادات</span>
+                        </Link>
+                      </motion.div>
+                      
+                      <motion.button
+                        onClick={handleLogout}
+                        className="w-full text-right flex items-center gap-x-2 px-4 py-2 text-sm text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>تسجيل الخروج</span>
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
@@ -338,7 +435,14 @@ export function Header() {
         <div className="fixed inset-0 z-40 md:hidden" onClick={() => setShowMobileMenu(false)}>
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowMobileMenu(false)}></div>
           
-          <div className="absolute inset-y-0 right-0 w-64 bg-[#0f172a] shadow-lg" onClick={e => e.stopPropagation()}>
+          <motion.div 
+            className="absolute inset-y-0 right-0 w-64 bg-[#0f172a] shadow-lg"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            onClick={e => e.stopPropagation()}
+          >
             {/* محتوى القائمة الجانبية للجوال */}
             <div className="p-4 border-b border-gray-700/20 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center">
@@ -374,7 +478,7 @@ export function Header() {
                 </button>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
     </>
@@ -466,3 +570,19 @@ function Users(props: any) {
     </svg>
   )
 }
+
+// Helper function for time-based greetings
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 6) return 'مساء الخير';
+  if (hour < 12) return 'صباح الخير';
+  if (hour < 17) return 'ظهيرة سعيدة';
+  return 'مساء الخير';
+}
+
+// Placeholder navigation items
+const navigation = [
+  { name: 'الرئيسية', href: '/admin', icon: Home },
+  { name: 'الخطابات', href: '/admin/letters', icon: FileText },
+  { name: 'المستخدمين', href: '/admin/users', icon: Users }
+];

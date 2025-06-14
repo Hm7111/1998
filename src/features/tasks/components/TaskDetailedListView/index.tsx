@@ -16,7 +16,8 @@ import {
   Flag,
   Eye,
   Edit,
-  Trash2
+  Trash2,
+  UserPlus
 } from 'lucide-react';
 import { Task, TaskStatus, TaskPriority } from '../../types';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -427,9 +428,35 @@ const TaskDetailedListView = ({
                               <div className="flex justify-between items-center">
                                 <span className="text-sm text-gray-600 dark:text-gray-400">المكلف بها</span>
                                 {task.assignee ? (
-                                  <span className="text-sm font-medium">{task.assignee.full_name}</span>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                      <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">{task.assignee.full_name}</span>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">المكلف بالمهمة</p>
+                                    </div>
+                                  </div>
                                 ) : (
                                   <span className="text-sm text-gray-500 dark:text-gray-400">غير مسند</span>
+                                )}
+                              </div>
+                              
+                              {/* المرسل */}
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-600 dark:text-gray-400">المرسل</span>
+                                {task.creator ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                                      <UserPlus className="h-4 w-4 text-green-600 dark:text-green-300" />
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">{task.creator.full_name}</span>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">منشئ المهمة</p>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-gray-500 dark:text-gray-400">غير معروف</span>
                                 )}
                               </div>
                               

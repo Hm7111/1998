@@ -11,14 +11,14 @@ import {
 import { TaskLog, TaskStatus } from '../types';
 
 interface TaskTimelineProps {
-  logs: TaskLog[];
+  logs?: TaskLog[];
   className?: string;
 }
 
 /**
  * مكون خط زمني لتتبع سجل المهمة
  */
-export function TaskTimeline({ logs, className = '' }: TaskTimelineProps) {
+export function TaskTimeline({ logs = [], className = '' }: TaskTimelineProps) {
   // تنسيق التاريخ
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

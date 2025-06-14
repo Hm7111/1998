@@ -9,7 +9,8 @@ import {
   Flag,
   SortAsc,
   SortDesc,
-  X
+  X,
+  Clock
 } from 'lucide-react';
 import { TaskFilters, TaskPriority } from '../../types';
 import { BranchSelector } from '../../../../components/branches/BranchSelector';

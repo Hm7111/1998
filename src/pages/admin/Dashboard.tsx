@@ -50,6 +50,7 @@ export function Dashboard() {
   
   // حساب التحية بناءً على الوقت الحالي
   const hasLetterPermissions = hasPermission('view:letters');
+  const hasTaskPermissions = hasPermission('view:tasks') || hasPermission('view:tasks:assigned') || hasPermission('view:tasks:own');
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -64,7 +65,7 @@ export function Dashboard() {
     }
     
     // تحميل الإشعارات (محاكاة)
-    if (hasPermission('view:letters') || hasPermission('view:tasks') || hasPermission('view:approvals')) {
+    if (hasLetterPermissions || hasTaskPermissions || hasPermission('view:approvals')) {
       setNotifications([
         {
           id: 1,
@@ -675,7 +676,7 @@ export function Dashboard() {
         </RestrictedComponent>
         
         {/* لوحة معلومات للمستخدمين بدون صلاحيات الخطابات */}
-        {!hasPermission('view:letters') && (
+        {!hasPermission('view:letters') && hasTaskPermissions && (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -853,49 +854,49 @@ export function Dashboard() {
           </motion.div>
         </RestrictedComponent>
         
-        {/* Tasks & Reminders - يظهر لكل المستخدمين */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden ${!hasPermission('view:letters') ? 'lg:col-span-3' : ''}`}
-        >
-          <div className="p-5 border-b dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-              <LayoutDashboard className="h-5 w-5 ml-2 text-purple-500" />
-              المهام والتذكيرات
-              {selectedBranch && (
-                <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
-                  حسب الفرع
-                </span>
-              )}
-            </h2>
-          </div>
-          
-          <div className="p-5">
-            <div className="space-y-3">
-              {/* محاكاة للمهام - يمكن استبدالها بمهام حقيقية لاحقاً */}
-              <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
-                <div className="flex items-center">
-                  <div className="h-5 w-5 rounded-full border-2 border-primary flex-shrink-0"></div>
-                  
-                  <div className="flex-1 mr-3 min-w-0">
-                    <p className="font-medium text-gray-800 dark:text-white">
-                      مراجعة الإعدادات الشخصية
-                    </p>
+        {/* Tasks & Reminders - يظهر فقط للمستخدمين الذين لديهم صلاحية المهام */}
+        <RestrictedComponent permissions={['view:tasks', 'view:tasks:assigned', 'view:tasks:own']}>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+            className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden ${!hasPermission('view:letters') ? 'lg:col-span-3' : ''}`}
+          >
+            <div className="p-5 border-b dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+                <LayoutDashboard className="h-5 w-5 ml-2 text-purple-500" />
+                المهام والتذكيرات
+                {selectedBranch && (
+                  <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
+                    حسب الفرع
+                  </span>
+                )}
+              </h2>
+            </div>
+            
+            <div className="p-5">
+              <div className="space-y-3">
+                {/* محاكاة للمهام - يمكن استبدالها بمهام حقيقية لاحقاً */}
+                <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
+                  <div className="flex items-center">
+                    <div className="h-5 w-5 rounded-full border-2 border-primary flex-shrink-0"></div>
                     
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                      تاريخ الاستحقاق: {new Date().toLocaleDateString()}
-                    </p>
+                    <div className="flex-1 mr-3 min-w-0">
+                      <p className="font-medium text-gray-800 dark:text-white">
+                        مراجعة الإعدادات الشخصية
+                      </p>
+                      
+                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                        تاريخ الاستحقاق: {new Date().toLocaleDateString()}
+                      </p>
+                    </div>
+                    
+                    <button className="p-1 text-primary hover:text-primary/80">
+                      <CheckCircle className="h-5 w-5" />
+                    </button>
                   </div>
-                  
-                  <button className="p-1 text-primary hover:text-primary/80">
-                    <CheckCircle className="h-5 w-5" />
-                  </button>
                 </div>
-              </div>
-              
-              {hasPermission('view:tasks') && (
+                
                 <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
                   <div className="flex items-center">
                     <div className="h-5 w-5 rounded-full flex items-center justify-center bg-green-500 text-white flex-shrink-0">
@@ -913,52 +914,43 @@ export function Dashboard() {
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+              
+              {/* زر إضافة مهمة جديدة - يظهر فقط إذا كان لديه الصلاحية */}
+              <RestrictedComponent permissions={['create:tasks', 'create:tasks:own']}>
+                <div className="mt-4 pt-4 border-t dark:border-gray-700">
+                  <button 
+                    onClick={() => navigate('/admin/tasks/new')}
+                    className="w-full py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors"
+                  >
+                    إضافة مهمة جديدة
+                  </button>
+                </div>
+              </RestrictedComponent>
             </div>
             
-            {/* رسالة إذا لم تكن هناك مهام */}
-            {!hasPermission('view:tasks') && (
-              <div className="text-center py-8">
-                <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-3" />
-                <p className="font-medium text-gray-800 dark:text-white">لا توجد مهام حالية</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">أنت متفرغ حالياً!</p>
-              </div>
-            )}
-            
-            {/* زر إضافة مهمة جديدة - يظهر فقط إذا كان لديه الصلاحية */}
-            <RestrictedComponent permissions={['create:tasks', 'create:tasks:own']}>
-              <div className="mt-4 pt-4 border-t dark:border-gray-700">
-                <button 
-                  onClick={() => navigate('/admin/tasks/new')}
-                  className="w-full py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors"
-                >
-                  إضافة مهمة جديدة
-                </button>
-              </div>
-            </RestrictedComponent>
-          </div>
-          
-          {/* Upcoming Events - محاكاة */}
-          <div className="border-t dark:border-gray-700 p-5">
-            <h3 className="font-medium text-gray-800 dark:text-white flex items-center mb-4">
-              <Calendar className="h-4 w-4 ml-2 text-primary" />
-              أحداث قادمة
-            </h3>
-            
-            <div className="space-y-3">
-              <div className="flex items-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
-                <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg flex flex-col items-center justify-center">
-                  <span className="text-xs font-semibold">12</span>
-                  <span className="text-xs">يونيو</span>
-                </div>
-                <div className="mr-3">
-                  <p className="font-medium text-gray-800 dark:text-white">مراجعة الإعدادات</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">10:00 صباحاً - 11:30 صباحاً</p>
+            {/* Upcoming Events - محاكاة */}
+            <div className="border-t dark:border-gray-700 p-5">
+              <h3 className="font-medium text-gray-800 dark:text-white flex items-center mb-4">
+                <Calendar className="h-4 w-4 ml-2 text-primary" />
+                أحداث قادمة
+              </h3>
+              
+              <div className="space-y-3">
+                <div className="flex items-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                  <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg flex flex-col items-center justify-center">
+                    <span className="text-xs font-semibold">12</span>
+                    <span className="text-xs">يونيو</span>
+                  </div>
+                  <div className="mr-3">
+                    <p className="font-medium text-gray-800 dark:text-white">مراجعة الإعدادات</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">10:00 صباحاً - 11:30 صباحاً</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </RestrictedComponent>
       </div>
 
       {/* Tips & Shortcuts */}
@@ -1014,7 +1006,7 @@ export function Dashboard() {
       </motion.div>
       
       {/* بطاقة توضيحية - تظهر فقط للمستخدمين الذين ليس لديهم بعض الصلاحيات */}
-      {(!hasPermission('create:letters') || !hasPermission('view:letters')) && (
+      {(!hasPermission('create:letters') || !hasPermission('view:letters')) && hasTaskPermissions && (
         <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-lg max-w-4xl mx-auto">
           <div className="flex items-start gap-2">
             <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   List, 
-  LayoutGrid, 
+  LayoutGrid, UserPlus,
   RefreshCw,
   BarChartHorizontal,
   Calendar,

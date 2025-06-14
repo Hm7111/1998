@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, User, MoreVertical, Building, MessageSquare, Paperclip, CheckCircle, AlertTriangle, X, Pause } from 'lucide-react';
+import { 
+  Calendar, Clock, User, MoreVertical, Building, MessageSquare, Paperclip, CheckCircle, AlertTriangle, X, Pause, UserPlus
+} from 'lucide-react';
 import { Task, TaskStatus } from '../types';
 import { TaskStatusBadge } from './TaskStatusBadge';
 import { TaskPriorityBadge } from './TaskPriorityBadge';
@@ -328,8 +330,15 @@ export function TaskCard({ task, onUpdateStatus, isStatusLoading, compact = fals
         <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-400">
           {task.assignee && (
             <div className="flex items-center gap-1">
-              <User className="h-3.5 w-3.5" />
-              <span className="truncate">{task.assignee.full_name}</span>
+              <User className="h-3.5 w-3.5 text-blue-500" />
+              <span className="truncate">المكلف: {task.assignee.full_name}</span>
+            </div>
+          )}
+          
+          {task.creator && (
+            <div className="flex items-center gap-1">
+              <UserPlus className="h-3.5 w-3.5 text-green-500" />
+              <span className="truncate">المرسل: {task.creator.full_name}</span>
             </div>
           )}
           

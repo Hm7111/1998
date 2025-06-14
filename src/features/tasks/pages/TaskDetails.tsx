@@ -32,6 +32,7 @@ import { useAuth } from '../../../lib/auth';
 import { TaskForm } from '../components/TaskForm';
 import { NotificationBadge } from '../../notifications/components';
 import { TaskTimeTracker } from '../components/TaskTimeTracker';
+import { StatusChangeDialog } from '../components/StatusChangeDialog';
 
 /**
  * صفحة عرض تفاصيل المهمة المحسنة
@@ -45,6 +46,8 @@ export function TaskDetails() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [currentTab, setCurrentTab] = useState<'details' | 'activity' | 'attachments' | 'timeTracking'>('details');
+  const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<TaskStatus | null>(null);
   
   const {
     useTaskDetails,
@@ -124,13 +127,48 @@ export function TaskDetails() {
   const canTrackTime = () => {
     return isAdmin || isAssignee();
   };
-  
+
   // تغيير حالة المهمة
   const handleStatusChange = (status: TaskStatus) => {
     if (!id || !canChangeStatus()) return;
+
+    // إظهار مربع حوار لتوضيح سبب التأجيل أو الرفض
+    if (status === 'postponed' || status === 'rejected' || status === 'completed') {
+      setSelectedStatus(status);
+      setShowStatusChangeDialog(true);
+    } else {
+      // حالات أخرى يمكن تغييرها مباشرة
+      updateTaskStatus(
+        { id, status },
+        {
+          onSuccess: () => {
+            const statusNames = {
+              new: 'جديدة',
+              in_progress: 'قيد التنفيذ',
+              completed: 'مكتملة',
+              rejected: 'مرفوضة',
+              postponed: 'مؤجلة'
+            };
+            
+            toast({
+              title: 'تم تحديث الحالة',
+              description: `تم تغيير حالة المهمة إلى "${statusNames[status]}"`,
+              type: 'success'
+            });
+            
+            refetch();
+          }
+        }
+      );
+    }
+  };
+  
+  // تأكيد تغيير الحالة مع السبب
+  const handleConfirmStatusChange = (status: TaskStatus, reason: string) => {
+    if (!id) return;
     
     updateTaskStatus(
-      { id, status }, 
+      { id, status, reason },
       {
         onSuccess: () => {
           const statusNames = {
@@ -147,6 +185,7 @@ export function TaskDetails() {
             type: 'success'
           });
           
+          setShowStatusChangeDialog(false);
           refetch();
         }
       }
@@ -402,6 +441,17 @@ export function TaskDetails() {
 
   return (
     <div className="p-6">
+      {/* نافذة تغيير الحالة مع توضيح السبب */}
+      {showStatusChangeDialog && selectedStatus && (
+        <StatusChangeDialog 
+          isOpen={showStatusChangeDialog}
+          onClose={() => setShowStatusChangeDialog(false)}
+          onConfirm={handleConfirmStatusChange}
+          status={selectedStatus}
+          isLoading={loading[`status_${id}`] || false}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-x-2">
           <button

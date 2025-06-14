@@ -103,15 +103,34 @@ export function useTaskActions() {
               
               if (!fallbackError && fallbackTimeData) {
                 // تحويل البيانات إلى تنسيق سجلات الوقت
-                timeRecords = fallbackTimeData.map(record => ({
-                  id: record.id,
-                  task_id: taskId,
-                  user_id: record.user?.id,
-                  duration: 0, // لا يمكن الحصول على المدة من السجلات القديمة
-                  notes: record.notes,
-                  created_at: record.created_at,
-                  user: record.user
-                }));
+                timeRecords = fallbackTimeData.map(record => {
+                  // استخراج الوقت من النص
+                  let duration = 0;
+                  let notes = record.notes;
+                  
+                  if (record.notes && record.notes.includes('seconds')) {
+                    const match = record.notes.match(/^(\d+) seconds/);
+                    if (match && match[1]) {
+                      duration = parseInt(match[1], 10);
+                    }
+                    
+                    if (record.notes.includes(' - ')) {
+                      notes = record.notes.split(' - ')[1];
+                    } else {
+                      notes = '';
+                    }
+                  }
+                  
+                  return {
+                    id: record.id,
+                    task_id: taskId,
+                    user_id: record.user?.id,
+                    duration: duration,
+                    notes: notes,
+                    created_at: record.created_at,
+                    user: record.user
+                  };
+                });
               }
             } else {
               timeRecords = timeData || [];
@@ -240,7 +259,7 @@ export function useTaskActions() {
    * تغيير حالة المهمة
    */
   const updateTaskStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string, status: Task['status'] }) => {
+    mutationFn: async ({ id, status, reason }: { id: string, status: Task['status'], reason?: string }) => {
       // التحقق من صلاحيات المستخدم
       if (!hasPermission('edit:tasks') && 
           !(hasPermission('edit:tasks:own') && await isTaskOwner(id)) &&
@@ -261,6 +280,16 @@ export function useTaskActions() {
         });
 
         if (error) throw error;
+        
+        // إذا تم توفير سبب، أضف سجل بذلك
+        if (reason) {
+          await supabase.from('task_logs').insert({
+            task_id: id,
+            user_id: dbUser.id,
+            action: 'status_change',
+            notes: reason
+          });
+        }
         
         setLoading(prev => ({ ...prev, [`status_${id}`]: false }));
         return data;
@@ -286,12 +315,35 @@ export function useTaskActions() {
           
         if (error) throw error;
         
+        // إضافة سجل بتغيير الحالة
+        try {
+          // الحصول على الحالة السابقة
+          const { data: prevData } = await supabase
+            .from('tasks')
+            .select('status')
+            .eq('id', id)
+            .maybeSingle();
+          
+          const previous_status = prevData?.status;
+          
+          await supabase.from('task_logs').insert({
+            task_id: id,
+            user_id: dbUser.id,
+            action: 'status_change',
+            previous_status,
+            new_status: status,
+            notes: reason || `تم تغيير الحالة إلى ${status}`
+          });
+        } catch (logError) {
+          console.warn('Error logging status change:', logError);
+        }
+        
         setLoading(prev => ({ ...prev, [`status_${id}`]: false }));
         return data;
       }
     },
     onSuccess: (_, variables) => {
-      const statusLabels = {
+      const statusNames = {
         new: 'جديدة',
         in_progress: 'قيد التنفيذ',
         completed: 'مكتملة',
@@ -301,7 +353,7 @@ export function useTaskActions() {
       
       toast({
         title: 'تم تحديث الحالة',
-        description: `تم تغيير حالة المهمة إلى "${statusLabels[variables.status]}"`,
+        description: `تم تغيير حالة المهمة إلى "${statusNames[variables.status]}"`,
         type: 'success'
       });
       

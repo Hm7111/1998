@@ -11,7 +11,8 @@ import {
   AlertCircle,
   Sparkles,
   FileCheck,
-  User as UserIcon
+  User as UserIcon,
+  CheckCircle
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';

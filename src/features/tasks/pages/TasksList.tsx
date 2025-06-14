@@ -9,7 +9,8 @@ import {
   Calendar,
   CheckCircle,
   AlertTriangle,
-  Pause
+  Pause,
+  Clock
 } from 'lucide-react';
 import { useTaskList } from '../hooks/useTaskList';
 import { useTaskActions } from '../hooks/useTaskActions';
@@ -17,6 +18,7 @@ import { KanbanBoard } from '../components/KanbanBoard';
 import { TaskReport } from '../components/TaskReport';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/Tabs';
 import { useAuth } from '../../../lib/auth';
+import TaskDetailedListView from '../components/TaskDetailedListView'; // استيراد العرض الجديد
 
 /**
  * صفحة إدارة المهام المحسنة
@@ -25,8 +27,10 @@ export function TasksList() {
   const navigate = useNavigate();
   const { isAdmin, hasPermission } = useAuth();
   
-  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar' | 'report'>('kanban');
+  // نوع العرض الحالي
+  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar' | 'report'>('list'); // تغيير القيمة الافتراضية إلى 'list' بدلاً من 'kanban'
   
+  // بيانات المهام
   const { 
     tasks, 
     isLoading, 
@@ -39,9 +43,11 @@ export function TasksList() {
     refetchTasks 
   } = useTaskList();
   
+  // وظائف إدارة المهام
   const {
     updateTaskStatus,
-    loading
+    loading,
+    deleteTask
   } = useTaskActions();
 
   // فتح صفحة إنشاء مهمة جديدة
@@ -52,6 +58,18 @@ export function TasksList() {
   // الانتقال إلى تفاصيل المهمة
   const handleViewTask = (taskId: string) => {
     navigate(`/admin/tasks/${taskId}`);
+  };
+  
+  // تحرير المهمة
+  const handleEditTask = (taskId: string) => {
+    navigate(`/admin/tasks/${taskId}/edit`);
+  };
+  
+  // حذف المهمة
+  const handleDeleteTask = (taskId: string) => {
+    if (window.confirm('هل أنت متأكد من رغبتك في حذف هذه المهمة؟')) {
+      deleteTask(taskId);
+    }
   };
 
   return (
@@ -65,6 +83,7 @@ export function TasksList() {
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
+          {/* أزرار تبديل وضع العرض */}
           <div className="bg-white dark:bg-gray-900 rounded-lg border dark:border-gray-700 p-1 flex">
             <button
               onClick={() => setViewMode('list')}
@@ -135,7 +154,7 @@ export function TasksList() {
         </div>
       </div>
 
-      {/* الملخص */}
+      {/* ملخص المهام */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         <div className={`p-4 rounded-lg border dark:border-gray-700 ${
           filters.status === 'all' ? 'bg-primary/5 border-primary' : 'bg-white dark:bg-gray-800'
@@ -161,10 +180,7 @@ export function TasksList() {
             onClick={() => updateFilters({ status: 'new' })}
           >
             <span className="h-6 w-6 mb-2 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-blue-600 dark:text-blue-300">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-              </svg>
+              <Clock className="h-4 w-4 text-blue-600 dark:text-blue-300" />
             </span>
             <span className="text-sm font-medium">جديدة</span>
             <span className="text-2xl font-bold mt-1">{taskSummary.new}</span>
@@ -224,10 +240,7 @@ export function TasksList() {
             onClick={() => updateFilters({ timeframe: filters.timeframe === 'overdue' ? 'all' : 'overdue' })}
           >
             <span className="h-6 w-6 mb-2 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-red-600 dark:text-red-300">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-              </svg>
+              <Clock className="h-4 w-4 text-red-600 dark:text-red-300" />
             </span>
             <span className="text-sm font-medium">متأخرة</span>
             <span className="text-2xl font-bold mt-1">{taskSummary.overdue}</span>
@@ -236,26 +249,46 @@ export function TasksList() {
       </div>
 
       {/* محتوى العرض حسب الوضع المحدد */}
-      {viewMode === 'list' && (
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-4 border dark:border-gray-800">
-          <p className="text-center text-gray-500 py-8">سيتم تطوير عرض القائمة المفصلة قريباً</p>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-t-primary border-b-transparent border-l-primary border-r-transparent"></div>
         </div>
-      )}
-      
-      {viewMode === 'kanban' && (
+      ) : error ? (
+        <div className="bg-red-50 dark:bg-red-900/20 border dark:border-red-900/30 rounded-lg p-6 text-center">
+          <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-600 dark:text-red-500" />
+          <h3 className="text-lg font-bold mb-2 text-red-800 dark:text-red-400">حدث خطأ أثناء تحميل المهام</h3>
+          <p className="mb-4 text-red-700 dark:text-red-400">حاول تحديث الصفحة أو المحاولة مرة أخرى لاحقاً.</p>
+          <button
+            onClick={refetchTasks}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg flex items-center gap-2 mx-auto"
+          >
+            <RefreshCw className="h-4 w-4" />
+            إعادة المحاولة
+          </button>
+        </div>
+      ) : viewMode === 'list' ? (
+        // عرض القائمة المفصلة المحسن
+        <TaskDetailedListView
+          tasks={tasks}
+          onUpdateStatus={updateTaskStatus}
+          isStatusLoading={loading}
+          onTaskClick={handleViewTask}
+          onEditTask={handleEditTask}
+          onDeleteTask={handleDeleteTask}
+        />
+      ) : viewMode === 'kanban' ? (
+        // عرض الكانبان
         <KanbanBoard 
-          tasks={tasks} 
-          isLoading={isLoading} 
+          tasks={tasks}
+          isLoading={isLoading}
           onCreateTask={hasPermission('create:tasks') ? handleCreateTask : undefined}
           onTaskClick={handleViewTask}
         />
-      )}
-      
-      {viewMode === 'report' && (
+      ) : viewMode === 'report' ? (
+        // عرض التقارير
         <TaskReport />
-      )}
-      
-      {viewMode === 'calendar' && (
+      ) : viewMode === 'calendar' ? (
+        // عرض التقويم (قيد التطوير)
         <div className="bg-white dark:bg-gray-900 rounded-lg border dark:border-gray-800 p-6 text-center py-16">
           <Calendar className="h-16 w-16 mx-auto text-gray-300 dark:text-gray-700 mb-4" />
           <h3 className="text-lg font-medium mb-2">عرض التقويم</h3>
@@ -263,7 +296,7 @@ export function TasksList() {
             سيتم إضافة عرض التقويم قريباً لمشاهدة المهام حسب التواريخ وتوزيعها على أيام الأسبوع والشهر
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

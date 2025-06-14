@@ -673,4 +673,135 @@ export function TaskDetails() {
                     {task.notes && (
                       <div>
                         <h3 className="font-medium mb-2">ملاحظات</h3>
-                        <div className="bg-gray-50 dark:bg
+                        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                          <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+                            {task.notes}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {currentTab === 'activity' && (
+                <div>
+                  <h3 className="font-medium mb-4">سجل النشاط</h3>
+                  <TaskTimeline taskId={id!} />
+                  
+                  {/* نموذج إضافة تعليق */}
+                  <div className="mt-6 pt-6 border-t dark:border-gray-700">
+                    <h4 className="font-medium mb-3">إضافة تعليق</h4>
+                    <TaskCommentForm onSubmit={handleAddComment} />
+                  </div>
+                </div>
+              )}
+              
+              {currentTab === 'attachments' && (
+                <div>
+                  <h3 className="font-medium mb-4">المرفقات</h3>
+                  <TaskAttachments
+                    taskId={id!}
+                    attachments={task.attachments || []}
+                    onUpload={handleUploadAttachment}
+                    onDelete={handleDeleteAttachment}
+                    canUpload={canEdit()}
+                    canDelete={canEdit()}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {/* العمود الجانبي */}
+        <div className="space-y-6">
+          {/* بطاقة الإجراءات السريعة */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-6">
+            <h3 className="font-medium mb-4">الإجراءات السريعة</h3>
+            
+            <div className="space-y-3">
+              {canChangeStatus() && (
+                <>
+                  {task.status === 'new' && (
+                    <button
+                      onClick={() => handleStatusChange('in_progress')}
+                      className="w-full flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                    >
+                      <Clock className="h-4 w-4" />
+                      بدء العمل
+                    </button>
+                  )}
+                  
+                  {task.status === 'in_progress' && (
+                    <>
+                      <button
+                        onClick={() => handleStatusChange('completed')}
+                        className="w-full flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        إكمال المهمة
+                      </button>
+                      
+                      <button
+                        onClick={() => handleStatusChange('postponed')}
+                        className="w-full flex items-center gap-2 px-3 py-2 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50"
+                      >
+                        <Pause className="h-4 w-4" />
+                        تأجيل المهمة
+                      </button>
+                    </>
+                  )}
+                  
+                  {(task.status === 'new' || task.status === 'in_progress') && (
+                    <button
+                      onClick={() => handleStatusChange('rejected')}
+                      className="w-full flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50"
+                    >
+                      <X className="h-4 w-4" />
+                      رفض المهمة
+                    </button>
+                  )}
+                  
+                  {task.status === 'postponed' && (
+                    <button
+                      onClick={() => handleStatusChange('in_progress')}
+                      className="w-full flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                    >
+                      <Clock className="h-4 w-4" />
+                      استئناف العمل
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          
+          {/* بطاقة الإحصائيات */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-6">
+            <h3 className="font-medium mb-4">إحصائيات المهمة</h3>
+            
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600 dark:text-gray-400">عدد التعليقات</span>
+                <span className="font-medium">{task.logs?.length || 0}</span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600 dark:text-gray-400">عدد المرفقات</span>
+                <span className="font-medium">{task.attachments?.length || 0}</span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600 dark:text-gray-400">آخر تحديث</span>
+                <span className="font-medium text-sm">
+                  {formatDistanceToNow(new Date(task.updated_at), { locale: ar, addSuffix: true })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

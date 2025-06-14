@@ -7,7 +7,10 @@ import {
   RefreshCw,
   BarChartHorizontal,
   Calendar,
-  Clock
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  Pause
 } from 'lucide-react';
 import { useTaskList } from '../hooks/useTaskList';
 import { useTaskActions } from '../hooks/useTaskActions';
@@ -254,45 +257,4 @@ export function TasksList() {
       )}
     </div>
   );
-}
-
-function AlertTriangle(props) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M12 9v4"></path>
-      <path d="M12 17h.01"></path>
-      <path d="M3 12a9 9 0 0 1 18 0 9 9 0 0 1-18 0Z"></path>
-    </svg>
-  )
-}
-
-function Pause(props) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-      {...props}
-    >
-      <rect width="4" height="16" x="6" y="4"></rect>
-      <rect width="4" height="16" x="14" y="4"></rect>
-    </svg>
-  )
 }

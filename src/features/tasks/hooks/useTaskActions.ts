@@ -78,22 +78,55 @@ export function useTaskActions() {
             
           if (attachmentsError) throw attachmentsError;
           
-          // جلب سجلات الوقت المسجل
-          const { data: timeRecords, error: timeError } = await supabase.rpc(
-            'get_task_time_records',
-            { task_id: taskId }
-          );
-          
-          if (timeError) {
-            console.warn('Error fetching time records:', timeError);
+          // محاولة جلب سجلات الوقت المسجل (مع التعامل مع الخطأ إذا لم تكن الدالة موجودة)
+          let timeRecords = [];
+          try {
+            const { data: timeData, error: timeError } = await supabase.rpc(
+              'get_task_time_records',
+              { task_id: taskId }
+            );
+            
+            if (timeError) {
+              console.warn('Function get_task_time_records not found, using fallback method');
+              // استخدام طريقة بديلة لجلب البيانات من جدول task_logs
+              const { data: fallbackTimeData, error: fallbackError } = await supabase
+                .from('task_logs')
+                .select(`
+                  id,
+                  created_at,
+                  notes,
+                  user:user_id(id, full_name, email, role)
+                `)
+                .eq('task_id', taskId)
+                .eq('action', 'time_record')
+                .order('created_at', { ascending: false });
+              
+              if (!fallbackError && fallbackTimeData) {
+                // تحويل البيانات إلى تنسيق سجلات الوقت
+                timeRecords = fallbackTimeData.map(record => ({
+                  id: record.id,
+                  task_id: taskId,
+                  user_id: record.user?.id,
+                  duration: 0, // لا يمكن الحصول على المدة من السجلات القديمة
+                  notes: record.notes,
+                  created_at: record.created_at,
+                  user: record.user
+                }));
+              }
+            } else {
+              timeRecords = timeData || [];
+            }
+          } catch (rpcError) {
+            console.warn('Error fetching time records:', rpcError);
             // نتجاهل الخطأ ونستمر بالتنفيذ مع بيانات فارغة
+            timeRecords = [];
           }
           
           return {
             ...data,
             logs: logs || [],
             attachments: attachments || [],
-            timeRecords: timeRecords || []
+            timeRecords: timeRecords
           };
         } catch (error) {
           console.error('Error fetching task details:', error);
@@ -219,16 +252,43 @@ export function useTaskActions() {
       
       setLoading(prev => ({ ...prev, [`status_${id}`]: true }));
       
-      const { data, error } = await supabase.rpc('update_task_status', {
-        p_task_id: id,
-        p_status: status,
-        p_completion_date: status === 'completed' ? new Date().toISOString() : null
-      });
+      // محاولة استخدام الدالة المخصصة أو استخدام التحديث المباشر
+      try {
+        const { data, error } = await supabase.rpc('update_task_status', {
+          p_task_id: id,
+          p_status: status,
+          p_completion_date: status === 'completed' ? new Date().toISOString() : null
+        });
 
-      if (error) throw error;
-      
-      setLoading(prev => ({ ...prev, [`status_${id}`]: false }));
-      return data;
+        if (error) throw error;
+        
+        setLoading(prev => ({ ...prev, [`status_${id}`]: false }));
+        return data;
+      } catch (rpcError) {
+        console.warn('RPC function not available, using direct update');
+        
+        // استخدام التحديث المباشر كبديل
+        const updateData: any = { 
+          status, 
+          updated_at: new Date().toISOString() 
+        };
+        
+        if (status === 'completed') {
+          updateData.completion_date = new Date().toISOString();
+        }
+        
+        const { data, error } = await supabase
+          .from('tasks')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        
+        setLoading(prev => ({ ...prev, [`status_${id}`]: false }));
+        return data;
+      }
     },
     onSuccess: (_, variables) => {
       const statusLabels = {
@@ -275,16 +335,38 @@ export function useTaskActions() {
       
       setLoading(prev => ({ ...prev, [`comment_${comment.task_id}`]: true }));
       
-      const { data, error } = await supabase.rpc('add_task_comment', {
-        p_task_id: comment.task_id,
-        p_user_id: dbUser.id,
-        p_comment: comment.notes
-      });
-      
-      if (error) throw error;
-      
-      setLoading(prev => ({ ...prev, [`comment_${comment.task_id}`]: false }));
-      return data;
+      // محاولة استخدام الدالة المخصصة أو استخدام الإدراج المباشر
+      try {
+        const { data, error } = await supabase.rpc('add_task_comment', {
+          p_task_id: comment.task_id,
+          p_user_id: dbUser.id,
+          p_comment: comment.notes
+        });
+        
+        if (error) throw error;
+        
+        setLoading(prev => ({ ...prev, [`comment_${comment.task_id}`]: false }));
+        return data;
+      } catch (rpcError) {
+        console.warn('RPC function not available, using direct insert');
+        
+        // استخدام الإدراج المباشر كبديل
+        const { data, error } = await supabase
+          .from('task_logs')
+          .insert({
+            task_id: comment.task_id,
+            user_id: dbUser.id,
+            action: 'comment',
+            notes: comment.notes
+          })
+          .select()
+          .single();
+          
+        if (error) throw error;
+        
+        setLoading(prev => ({ ...prev, [`comment_${comment.task_id}`]: false }));
+        return data;
+      }
     },
     onSuccess: (_, variables) => {
       toast({
@@ -502,17 +584,39 @@ export function useTaskActions() {
       
       setLoading(prev => ({ ...prev, [`time_${timeData.taskId}`]: true }));
       
-      const { data, error } = await supabase.rpc('save_task_time_record', {
-        p_task_id: timeData.taskId,
-        p_user_id: dbUser.id,
-        p_duration: timeData.duration,
-        p_notes: timeData.notes || null
-      });
-      
-      if (error) throw error;
-      
-      setLoading(prev => ({ ...prev, [`time_${timeData.taskId}`]: false }));
-      return data;
+      // محاولة استخدام الدالة المخصصة أو استخدام الإدراج المباشر
+      try {
+        const { data, error } = await supabase.rpc('save_task_time_record', {
+          p_task_id: timeData.taskId,
+          p_user_id: dbUser.id,
+          p_duration: timeData.duration,
+          p_notes: timeData.notes || null
+        });
+        
+        if (error) throw error;
+        
+        setLoading(prev => ({ ...prev, [`time_${timeData.taskId}`]: false }));
+        return data;
+      } catch (rpcError) {
+        console.warn('RPC function not available, using direct insert');
+        
+        // استخدام الإدراج المباشر كبديل
+        const { data, error } = await supabase
+          .from('task_logs')
+          .insert({
+            task_id: timeData.taskId,
+            user_id: dbUser.id,
+            action: 'time_record',
+            notes: `${timeData.duration} seconds${timeData.notes ? ` - ${timeData.notes}` : ''}`
+          })
+          .select()
+          .single();
+          
+        if (error) throw error;
+        
+        setLoading(prev => ({ ...prev, [`time_${timeData.taskId}`]: false }));
+        return data;
+      }
     },
     onSuccess: (_, variables) => {
       toast({

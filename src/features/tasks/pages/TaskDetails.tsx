@@ -17,7 +17,8 @@ import {
   ChevronDown,
   FileText,
   BarChartHorizontal,
-  Timer
+  Timer,
+  Paperclip
 } from 'lucide-react';
 import { useTaskActions } from '../hooks/useTaskActions';
 import { TaskStatus, TaskComment, TaskPriority } from '../types';

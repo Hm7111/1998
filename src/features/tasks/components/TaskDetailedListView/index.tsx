@@ -208,9 +208,9 @@ const TaskDetailedListView = ({
   return (
     <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border dark:border-gray-800 overflow-hidden">
       {/* رأس الجدول */}
-      <div className="sticky top-0 bg-gray-50 dark:bg-gray-900/50 border-b dark:border-gray-800 z-10">
-        <div className="grid grid-cols-12 py-4 px-4 gap-4 font-medium text-sm text-gray-600 dark:text-gray-400">
-          <div className="col-span-5 md:col-span-3 flex items-center cursor-pointer" onClick={() => handleSortChange('created_at')}>
+      <div className="sticky top-0 bg-gray-50 dark:bg-gray-900/50 border-b dark:border-gray-800 z-10 overflow-x-auto">
+        <div className="grid grid-cols-12 py-4 px-4 gap-4 font-medium text-sm text-gray-600 dark:text-gray-400 min-w-[800px]">
+          <div className="col-span-4 md:col-span-3 flex items-center cursor-pointer" onClick={() => handleSortChange('created_at')}>
             <span>المهمة</span>
             {sortField === 'created_at' && (
               sortDirection === 'asc' 
@@ -219,11 +219,15 @@ const TaskDetailedListView = ({
             )}
           </div>
           
-          <div className="hidden md:flex md:col-span-2 items-center">
+          <div className="col-span-2 flex items-center">
+            <span>المرسل</span>
+          </div>
+          
+          <div className="col-span-2 flex items-center">
             <span>المكلف بها</span>
           </div>
           
-          <div className="col-span-3 md:col-span-2 flex items-center justify-center cursor-pointer" onClick={() => handleSortChange('priority')}>
+          <div className="col-span-1 flex items-center justify-center cursor-pointer" onClick={() => handleSortChange('priority')}>
             <span>الأولوية</span>
             {sortField === 'priority' && (
               sortDirection === 'asc' 
@@ -232,7 +236,7 @@ const TaskDetailedListView = ({
             )}
           </div>
           
-          <div className="col-span-3 md:col-span-2 flex items-center justify-center cursor-pointer" onClick={() => handleSortChange('due_date')}>
+          <div className="col-span-2 flex items-center justify-center cursor-pointer" onClick={() => handleSortChange('due_date')}>
             <span>تاريخ الاستحقاق</span>
             {sortField === 'due_date' && (
               sortDirection === 'asc' 
@@ -241,7 +245,7 @@ const TaskDetailedListView = ({
             )}
           </div>
           
-          <div className="hidden md:flex md:col-span-2 items-center justify-center">
+          <div className="col-span-1 flex items-center justify-center">
             <span>الحالة</span>
           </div>
           
@@ -272,14 +276,14 @@ const TaskDetailedListView = ({
             return (
               <React.Fragment key={task.id}>
                 {/* صف المهمة */}
-                <div 
-                  className={`grid grid-cols-12 py-4 px-4 gap-4 items-center hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors ${
+                <div
+                  className={`grid grid-cols-12 py-4 px-4 gap-4 items-center hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors min-w-[800px] ${
                     isExpanded ? 'bg-blue-50/50 dark:bg-blue-950/10' : ''
                   }`}
                   onClick={() => toggleExpand(task.id)}
                 >
                   {/* عنوان المهمة وشريط الحالة */}
-                  <div className="col-span-5 md:col-span-3 flex items-center gap-3">
+                  <div className="col-span-4 md:col-span-3 flex items-center gap-3">
                     <div className={`w-1 h-10 rounded-full self-stretch ${statusInfo.indicatorColor}`} />
                     <div>
                       <h3 className="font-medium text-gray-900 dark:text-white line-clamp-1">{task.title}</h3>
@@ -289,8 +293,24 @@ const TaskDetailedListView = ({
                     </div>
                   </div>
                   
+                  {/* المرسل (منشئ المهمة) */}
+                  <div className="col-span-2 flex items-center">
+                    {task.creator ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                          <UserPlus className="h-4 w-4 text-green-600 dark:text-green-300" />
+                        </div>
+                        <span className="text-sm font-medium truncate max-w-[100px]">
+                          {task.creator.full_name}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">غير معروف</span>
+                    )}
+                  </div>
+                  
                   {/* المكلف بالمهمة */}
-                  <div className="hidden md:flex md:col-span-2 items-center">
+                  <div className="col-span-2 flex items-center">
                     {task.assignee ? (
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
@@ -306,7 +326,7 @@ const TaskDetailedListView = ({
                   </div>
                   
                   {/* الأولوية */}
-                  <div className="col-span-3 md:col-span-2 flex justify-center">
+                  <div className="col-span-1 flex justify-center">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs ${priorityInfo.color} border gap-1`}>
                       {priorityInfo.icon}
                       <span className="hidden md:inline">{priorityInfo.label}</span>
@@ -314,7 +334,7 @@ const TaskDetailedListView = ({
                   </div>
                   
                   {/* تاريخ الاستحقاق */}
-                  <div className="col-span-3 md:col-span-2 flex justify-center">
+                  <div className="col-span-2 flex justify-center">
                     {task.due_date ? (
                       <span className={`inline-flex items-center gap-1 text-xs ${
                         dueInfo.isOverdue 
@@ -330,7 +350,7 @@ const TaskDetailedListView = ({
                   </div>
                   
                   {/* حالة المهمة */}
-                  <div className="hidden md:flex md:col-span-2 items-center justify-center">
+                  <div className="col-span-1 flex items-center justify-center">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs ${statusInfo.color} border gap-1`}>
                       {statusInfo.icon}
                       <span>{statusInfo.label}</span>

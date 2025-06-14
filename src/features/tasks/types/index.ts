@@ -3,7 +3,6 @@ import { Task, TaskLog, TaskAttachment, TaskStatus, TaskPriority, User, Branch, 
 export type { Task, TaskLog, TaskAttachment, TaskStatus, TaskPriority, TaskComment };
 
 // واجهات إضافية خاصة بنظام المهام
-
 export interface TaskFormData {
   title: string;
   description?: string;
@@ -55,6 +54,7 @@ export interface TaskUpdate {
   entity_id?: string | null;
   rating?: number | null;
   rating_notes?: string | null;
+  reason?: string; // سبب تغيير الحالة
 }
 
 export interface TaskComment {
@@ -75,16 +75,6 @@ export interface TaskSummary {
   createdByMe: number;
 }
 
-export interface TaskTimeRecord {
-  id?: string;
-  taskId: string;
-  userId?: string;
-  duration: number; // بالثواني
-  notes?: string;
-  created_at?: string;
-  user?: User;
-}
-
 interface TaskWithRelations extends Task {
   creator?: User;
   assignee?: User;
@@ -93,33 +83,6 @@ interface TaskWithRelations extends Task {
   attachments?: TaskAttachment[];
   comments?: TaskComment[];
   notifications?: TaskNotification[];
-  timeRecords?: TaskTimeRecord[];
   commentsCount?: number;
   attachmentsCount?: number;
-}
-
-interface TaskLogWithRelations extends TaskLog {
-  user?: User;
-  task?: Task;
-}
-
-interface TaskAttachmentWithRelations extends TaskAttachment {
-  user?: User;
-}
-
-interface TaskCommentWithRelations extends TaskComment {
-  user?: User;
-}
-
-interface TaskNotificationWithRelations extends TaskNotification {
-  user?: User;
-  task?: Task;
-}
-
-interface TaskReportData {
-  userId?: string;
-  branchId?: string;
-  startDate: string;
-  endDate: string;
-  reportType: 'user' | 'team' | 'branch' | 'system';
 }

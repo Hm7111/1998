@@ -3,11 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
 import { useToast } from '../../../hooks/useToast';
-import { TaskFormData, TaskUpdate, TaskComment, Task, TaskLog, TaskTimeRecord } from '../types';
+import { TaskFormData, TaskUpdate, TaskComment, Task } from '../types';
 
 /**
- * هوك لإدارة عمليات المهام مثل الإنشاء والتحديث والحذف
- * تمت إضافة وظائف متقدمة لتتبع الوقت والتقارير
+ * هوك محسن لإدارة عمليات المهام: الإنشاء، التحديث، التعليق والحذف
  */
 export function useTaskActions() {
   const { toast } = useToast();
@@ -25,7 +24,9 @@ export function useTaskActions() {
         if (!taskId) return null;
         
         // التحقق من صلاحيات المستخدم
-        if (!hasPermission('view:tasks') && !hasPermission('view:tasks:assigned') && !hasPermission('view:tasks:own')) {
+        if (!hasPermission('view:tasks') && 
+            !hasPermission('view:tasks:assigned') && 
+            !hasPermission('view:tasks:own')) {
           throw new Error('ليس لديك صلاحية لعرض المهام');
         }
         
@@ -54,7 +55,7 @@ export function useTaskActions() {
             throw new Error('ليس لديك صلاحية للوصول إلى هذه المهمة');
           }
           
-          // جلب سجلات التغييرات
+          // جلب سجلات التغييرات والتعليقات
           const { data: logs, error: logsError } = await supabase
             .from('task_logs')
             .select(`
@@ -78,74 +79,15 @@ export function useTaskActions() {
             
           if (attachmentsError) throw attachmentsError;
           
-          // محاولة جلب سجلات الوقت المسجل (مع التعامل مع الخطأ إذا لم تكن الدالة موجودة)
-          let timeRecords = [];
-          try {
-            const { data: timeData, error: timeError } = await supabase.rpc(
-              'get_task_time_records',
-              { p_task_id: taskId }
-            );
-            
-            if (timeError) {
-              console.warn('Function get_task_time_records not found, using fallback method');
-              // استخدام طريقة بديلة لجلب البيانات من جدول task_logs
-              const { data: fallbackTimeData, error: fallbackError } = await supabase
-                .from('task_logs')
-                .select(`
-                  id,
-                  created_at,
-                  notes,
-                  user:user_id(id, full_name, email, role)
-                `)
-                .eq('task_id', taskId)
-                .eq('action', 'time_record')
-                .order('created_at', { ascending: false });
-              
-              if (!fallbackError && fallbackTimeData) {
-                // تحويل البيانات إلى تنسيق سجلات الوقت
-                timeRecords = fallbackTimeData.map(record => {
-                  // استخراج الوقت من النص
-                  let duration = 0;
-                  let notes = record.notes;
-                  
-                  if (record.notes && record.notes.includes('seconds')) {
-                    const match = record.notes.match(/^(\d+) seconds/);
-                    if (match && match[1]) {
-                      duration = parseInt(match[1], 10);
-                    }
-                    
-                    if (record.notes.includes(' - ')) {
-                      notes = record.notes.split(' - ')[1];
-                    } else {
-                      notes = '';
-                    }
-                  }
-                  
-                  return {
-                    id: record.id,
-                    task_id: taskId,
-                    user_id: record.user?.id,
-                    duration: duration,
-                    notes: notes,
-                    created_at: record.created_at,
-                    user: record.user
-                  };
-                });
-              }
-            } else {
-              timeRecords = timeData || [];
-            }
-          } catch (rpcError) {
-            console.warn('Error fetching time records:', rpcError);
-            // نتجاهل الخطأ ونستمر بالتنفيذ مع بيانات فارغة
-            timeRecords = [];
-          }
+          // حساب عدد التعليقات والمرفقات
+          const commentsCount = logs ? logs.filter(log => log.action === 'comment').length : 0;
           
           return {
             ...data,
             logs: logs || [],
             attachments: attachments || [],
-            timeRecords: timeRecords
+            commentsCount: commentsCount,
+            attachmentsCount: attachments?.length || 0
           };
         } catch (error) {
           console.error('Error fetching task details:', error);
@@ -234,7 +176,7 @@ export function useTaskActions() {
     },
     onSuccess: (_, variables) => {
       toast({
-        title: 'تم بنجاح',
+        title: 'تم التحديث',
         description: 'تم تحديث المهمة بنجاح',
         type: 'success'
       });
@@ -256,7 +198,7 @@ export function useTaskActions() {
   });
 
   /**
-   * تغيير حالة المهمة
+   * تغيير حالة المهمة مع توضيح السبب
    */
   const updateTaskStatus = useMutation({
     mutationFn: async ({ id, status, reason }: { id: string, status: Task['status'], reason?: string }) => {
@@ -276,20 +218,10 @@ export function useTaskActions() {
         const { data, error } = await supabase.rpc('update_task_status', {
           p_task_id: id,
           p_status: status,
-          p_completion_date: status === 'completed' ? new Date().toISOString() : null
+          p_reason: reason || null
         });
 
         if (error) throw error;
-        
-        // إذا تم توفير سبب، أضف سجل بذلك
-        if (reason) {
-          await supabase.from('task_logs').insert({
-            task_id: id,
-            user_id: dbUser.id,
-            action: 'status_change',
-            notes: reason
-          });
-        }
         
         setLoading(prev => ({ ...prev, [`status_${id}`]: false }));
         return data;
@@ -304,6 +236,9 @@ export function useTaskActions() {
         
         if (status === 'completed') {
           updateData.completion_date = new Date().toISOString();
+        } else if (status === 'rejected' || status === 'postponed') {
+          // لا نضع تاريخ إكمال للمهام المرفوضة أو المؤجلة
+          updateData.completion_date = null;
         }
         
         const { data, error } = await supabase
@@ -315,7 +250,7 @@ export function useTaskActions() {
           
         if (error) throw error;
         
-        // إضافة سجل بتغيير الحالة
+        // إضافة سجل بتغيير الحالة مع السبب
         try {
           // الحصول على الحالة السابقة
           const { data: prevData } = await supabase
@@ -391,7 +326,6 @@ export function useTaskActions() {
       try {
         const { data, error } = await supabase.rpc('add_task_comment', {
           p_task_id: comment.task_id,
-          p_user_id: dbUser.id,
           p_comment: comment.notes
         });
         
@@ -621,75 +555,6 @@ export function useTaskActions() {
       });
     }
   });
-  
-  /**
-   * حفظ وقت مسجل
-   */
-  const saveTimeRecord = useMutation({
-    mutationFn: async (timeData: TaskTimeRecord) => {
-      // التحقق من صلاحيات المستخدم
-      if (!await canAccessTask(timeData.taskId)) {
-        throw new Error('ليس لديك صلاحية لتسجيل وقت لهذه المهمة');
-      }
-      
-      if (!dbUser?.id) throw new Error('يجب تسجيل الدخول لتسجيل وقت المهمة');
-      
-      setLoading(prev => ({ ...prev, [`time_${timeData.taskId}`]: true }));
-      
-      // محاولة استخدام الدالة المخصصة أو استخدام الإدراج المباشر
-      try {
-        const { data, error } = await supabase.rpc('save_task_time_record', {
-          p_task_id: timeData.taskId,
-          p_user_id: dbUser.id,
-          p_duration: timeData.duration,
-          p_notes: timeData.notes || null
-        });
-        
-        if (error) throw error;
-        
-        setLoading(prev => ({ ...prev, [`time_${timeData.taskId}`]: false }));
-        return data;
-      } catch (rpcError) {
-        console.warn('RPC function not available, using direct insert');
-        
-        // استخدام الإدراج المباشر كبديل
-        const { data, error } = await supabase
-          .from('task_logs')
-          .insert({
-            task_id: timeData.taskId,
-            user_id: dbUser.id,
-            action: 'time_record',
-            notes: `${timeData.duration} seconds${timeData.notes ? ` - ${timeData.notes}` : ''}`
-          })
-          .select()
-          .single();
-          
-        if (error) throw error;
-        
-        setLoading(prev => ({ ...prev, [`time_${timeData.taskId}`]: false }));
-        return data;
-      }
-    },
-    onSuccess: (_, variables) => {
-      toast({
-        title: 'تم الحفظ',
-        description: 'تم حفظ الوقت المسجل بنجاح',
-        type: 'success'
-      });
-      
-      queryClient.invalidateQueries({ queryKey: ['task', variables.taskId] });
-    },
-    onError: (error, variables) => {
-      console.error('Error saving time record:', error);
-      setLoading(prev => ({ ...prev, [`time_${variables.taskId}`]: false }));
-      
-      toast({
-        title: 'خطأ',
-        description: error instanceof Error ? error.message : 'فشل في حفظ الوقت المسجل',
-        type: 'error'
-      });
-    }
-  });
 
   // وظائف مساعدة للتحقق من الصلاحيات
   
@@ -760,7 +625,6 @@ export function useTaskActions() {
     deleteTask: deleteTask.mutate,
     uploadTaskAttachment: uploadTaskAttachment.mutate,
     deleteTaskAttachment: deleteTaskAttachment.mutate,
-    saveTimeRecord: saveTimeRecord.mutate,
     isTaskOwner,
     isTaskAssignee,
     canAccessTask

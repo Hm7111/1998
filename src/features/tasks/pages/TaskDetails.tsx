@@ -16,8 +16,6 @@ import {
   Pause,
   ChevronDown,
   FileText,
-  BarChartHorizontal,
-  Timer,
   Paperclip
 } from 'lucide-react';
 import { useTaskActions } from '../hooks/useTaskActions';
@@ -31,8 +29,9 @@ import { useToast } from '../../../hooks/useToast';
 import { useAuth } from '../../../lib/auth';
 import { TaskForm } from '../components/TaskForm';
 import { NotificationBadge } from '../../notifications/components';
-import { TaskTimeTracker } from '../components/TaskTimeTracker';
 import { StatusChangeDialog } from '../components/StatusChangeDialog';
+import { formatDistanceToNow } from 'date-fns';
+import { ar } from 'date-fns/locale';
 
 /**
  * صفحة عرض تفاصيل المهمة المحسنة
@@ -45,7 +44,7 @@ export function TaskDetails() {
   
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [currentTab, setCurrentTab] = useState<'details' | 'activity' | 'attachments' | 'timeTracking'>('details');
+  const [currentTab, setCurrentTab] = useState<'details' | 'activity' | 'attachments'>('details');
   const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | null>(null);
   
@@ -57,8 +56,7 @@ export function TaskDetails() {
     deleteTask,
     uploadTaskAttachment,
     deleteTaskAttachment,
-    loading,
-    saveTimeRecord
+    loading
   } = useTaskActions();
   
   // جلب تفاصيل المهمة
@@ -72,8 +70,6 @@ export function TaskDetails() {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
     });
   };
   
@@ -85,6 +81,32 @@ export function TaskDetails() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+  
+  // حساب الوقت المستغرق
+  const calculateDuration = () => {
+    if (!task) return null;
+    
+    // إذا كانت المهمة مكتملة نحسب الوقت من تاريخ الإنشاء حتى تاريخ الإكمال
+    if (task.status === 'completed' && task.completion_date) {
+      const start = new Date(task.created_at).getTime();
+      const end = new Date(task.completion_date).getTime();
+      const durationMs = end - start;
+      const durationDays = Math.floor(durationMs / (1000 * 60 * 60 * 24));
+      const durationHours = Math.floor((durationMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      
+      if (durationDays > 0) {
+        return `${durationDays} يوم${durationDays > 1 ? '' : ''} و ${durationHours} ساعة${durationHours > 1 ? '' : ''}`;
+      } else {
+        return `${durationHours} ساعة${durationHours > 1 ? '' : ''}`;
+      }
+    }
+    
+    // إذا كانت المهمة لا تزال جارية أو مؤجلة أو مرفوضة
+    // نحسب الوقت من تاريخ الإنشاء حتى الآن
+    const start = new Date(task.created_at).getTime();
+    const now = new Date().getTime();
+    return formatDistanceToNow(new Date(task.created_at), { locale: ar, addSuffix: false });
   };
   
   // التحقق من تأخر المهمة
@@ -121,11 +143,6 @@ export function TaskDetails() {
   // التحقق من صلاحيات تغيير الحالة
   const canChangeStatus = () => {
     return isAdmin || isAssignee() || (isCreator() && hasPermission('edit:tasks:own'));
-  };
-  
-  // التحقق من صلاحيات تتبع الوقت
-  const canTrackTime = () => {
-    return isAdmin || isAssignee();
   };
 
   // تغيير حالة المهمة
@@ -283,32 +300,6 @@ export function TaskDetails() {
         refetch();
       }
     });
-  };
-  
-  // حفظ وقت العمل
-  const handleSaveTimeRecord = async (taskId: string, seconds: number, notes?: string) => {
-    if (!canTrackTime()) return;
-    
-    try {
-      await saveTimeRecord({
-        taskId,
-        duration: seconds,
-        notes
-      });
-      
-      refetch();
-    } catch (error) {
-      console.error('Error saving time record:', error);
-      throw error;
-    }
-  };
-  
-  // حساب إجمالي الوقت المسجل (بالساعات)
-  const calculateTotalTimeSpent = () => {
-    if (!task?.timeRecords || task.timeRecords.length === 0) return 0;
-    
-    const totalSeconds = task.timeRecords.reduce((total, record) => total + record.duration, 0);
-    return totalSeconds / 3600; // تحويل من ثواني إلى ساعات
   };
 
   if (isLoading) {
@@ -527,17 +518,6 @@ export function TaskDetails() {
                     </span>
                   )}
                 </button>
-                {canTrackTime() && (
-                  <button
-                    className={`px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 ${
-                      currentTab === 'timeTracking' ? 'border-primary text-primary' : 'border-transparent'
-                    }`}
-                    onClick={() => setCurrentTab('timeTracking')}
-                  >
-                    <Timer className="inline-block h-4 w-4 mr-2" />
-                    تتبع الوقت
-                  </button>
-                )}
               </div>
             </div>
             
@@ -650,48 +630,39 @@ export function TaskDetails() {
                       )}
                     </div>
                     
-                    {task.timeRecords && task.timeRecords.length > 0 && (
-                      <div className="border dark:border-gray-700 rounded-lg p-4 mb-6">
-                        <h3 className="font-medium mb-3 flex items-center gap-2">
-                          <Timer className="h-5 w-5 text-primary" />
-                          سجل الوقت المسجل
-                        </h3>
-                        
-                        <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg mb-3">
-                          <div className="text-blue-800 dark:text-blue-300 font-medium">إجمالي الوقت المسجل</div>
+                    {/* عرض الوقت المستغرق في المهمة */}
+                    <div className="border dark:border-gray-700 rounded-lg p-4 mb-6">
+                      <h3 className="font-medium mb-3 flex items-center gap-2">
+                        <Clock className="h-5 w-5 text-primary" />
+                        معلومات الوقت
+                      </h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                          <div className="text-sm text-blue-800 dark:text-blue-300">مدة العمل</div>
                           <div className="text-lg font-bold text-blue-800 dark:text-blue-300">
-                            {calculateTotalTimeSpent().toFixed(2)} ساعة
+                            {calculateDuration() || 'لم يحسب بعد'}
                           </div>
                         </div>
                         
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                          {task.timeRecords.map(record => (
-                            <div 
-                              key={record.id} 
-                              className="flex justify-between items-center p-2 border-b dark:border-gray-700 last:border-0"
-                            >
-                              <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                                  <User className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                                </div>
-                                <div>
-                                  <p className="font-medium">{record.user?.full_name || 'مستخدم'}</p>
-                                  <p className="text-xs text-gray-500">
-                                    {new Date(record.created_at).toLocaleDateString()}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-medium">{(record.duration / 3600).toFixed(2)} ساعة</p>
-                                {record.notes && (
-                                  <p className="text-xs text-gray-500">{record.notes}</p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                        <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">
+                          <div className="text-sm text-gray-600 dark:text-gray-400">الحالة الزمنية</div>
+                          <div className="text-lg font-bold">
+                            {task.status === 'completed' ? (
+                              <span className="text-green-600 dark:text-green-400">مكتملة</span>
+                            ) : task.status === 'rejected' ? (
+                              <span className="text-red-600 dark:text-red-400">مرفوضة</span>
+                            ) : task.status === 'postponed' ? (
+                              <span className="text-purple-600 dark:text-purple-400">مؤجلة</span>
+                            ) : isOverdue() ? (
+                              <span className="text-red-600 dark:text-red-400">متأخرة</span>
+                            ) : (
+                              <span className="text-blue-600 dark:text-blue-400">جارية</span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    )}
+                    </div>
                     
                     {task.notes && (
                       <div>
@@ -776,55 +747,6 @@ export function TaskDetails() {
                   />
                 </div>
               )}
-              
-              {currentTab === 'timeTracking' && canTrackTime() && (
-                <div className="space-y-6">
-                  <TaskTimeTracker 
-                    taskId={id}
-                    onSaveTime={handleSaveTimeRecord}
-                    isLoading={loading[`time_${id}`] || false}
-                  />
-                  
-                  {task.timeRecords && task.timeRecords.length > 0 && (
-                    <div className="border dark:border-gray-700 rounded-lg p-4">
-                      <h3 className="font-medium mb-4 flex items-center gap-2">
-                        <BarChartHorizontal className="h-5 w-5 text-primary" />
-                        سجل الوقت المسجل
-                      </h3>
-                      
-                      <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg mb-4 flex items-center justify-between">
-                        <span className="font-medium text-blue-800 dark:text-blue-300">إجمالي الوقت المسجل</span>
-                        <span className="text-xl font-bold text-blue-800 dark:text-blue-300">
-                          {calculateTotalTimeSpent().toFixed(2)} ساعة
-                        </span>
-                      </div>
-                      
-                      <div className="max-h-60 overflow-y-auto divide-y dark:divide-gray-700">
-                        {task.timeRecords.map(record => (
-                          <div key={record.id} className="py-3 flex justify-between">
-                            <div>
-                              <p className="font-medium">{record.user?.full_name || 'مستخدم'}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {new Date(record.created_at).toLocaleDateString()} • 
-                                {new Date(record.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </p>
-                              {record.notes && (
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{record.notes}</p>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <p className="font-mono font-bold">{(record.duration / 3600).toFixed(2)} ساعة</p>
-                              <p className="text-xs text-gray-500">
-                                {Math.floor(record.duration / 3600)}:{Math.floor((record.duration % 3600) / 60).toString().padStart(2, '0')}:{(record.duration % 60).toString().padStart(2, '0')}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -899,30 +821,7 @@ export function TaskDetails() {
               </div>
             </div>
           )}
-          
-          {/* تتبع الوقت المصغر */}
-          {canTrackTime() && (
-            <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-4">
-              <h3 className="font-medium mb-3 flex items-center gap-2">
-                <Timer className="h-5 w-5 text-primary" />
-                تتبع الوقت
-              </h3>
-              
-              <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-3">
-                <span className="text-sm font-medium">إجمالي الوقت المسجل</span>
-                <span className="font-bold text-primary">{calculateTotalTimeSpent().toFixed(2)} ساعة</span>
-              </div>
-              
-              <button
-                onClick={() => setCurrentTab('timeTracking')}
-                className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 flex items-center justify-center gap-2"
-              >
-                <Clock className="h-4 w-4" />
-                تسجيل الوقت
-              </button>
-            </div>
-          )}
-          
+
           {/* أزرار الإجراءات السريعة */}
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-4">
             <h3 className="font-medium mb-3">إجراءات سريعة</h3>
@@ -934,16 +833,6 @@ export function TaskDetails() {
                 >
                   <Edit className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                   <span>تعديل المهمة</span>
-                </button>
-              )}
-              
-              {canTrackTime() && (
-                <button
-                  onClick={() => setCurrentTab('timeTracking')}
-                  className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-primary bg-primary/5 hover:bg-primary/10"
-                >
-                  <Timer className="h-4 w-4 text-primary" />
-                  <span>تسجيل الوقت</span>
                 </button>
               )}
               
@@ -964,6 +853,47 @@ export function TaskDetails() {
                   <span>حذف المهمة</span>
                 </button>
               )}
+            </div>
+          </div>
+          
+          {/* معلومات المدة الزمنية */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow border dark:border-gray-800 p-4">
+            <h3 className="font-medium mb-3 flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              معلومات المدة الزمنية
+            </h3>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <span className="text-sm font-medium">تاريخ الإنشاء:</span>
+                <span>{formatDate(task.created_at)}</span>
+              </div>
+              
+              {task.due_date && (
+                <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <span className="text-sm font-medium">تاريخ الاستحقاق:</span>
+                  <span className={isOverdue() ? 'text-red-600 dark:text-red-400' : ''}>
+                    {formatDate(task.due_date)}
+                  </span>
+                </div>
+              )}
+              
+              {task.completion_date && (
+                <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <span className="text-sm font-medium">تاريخ الإنجاز:</span>
+                  <span className="text-green-600 dark:text-green-400">
+                    {formatDate(task.completion_date)}
+                  </span>
+                </div>
+              )}
+              
+              {/* المدة الإجمالية */}
+              <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-lg">
+                <span className="text-sm font-medium">المدة الإجمالية:</span>
+                <span className="font-bold">
+                  {calculateDuration() || 'غير محسوبة'}
+                </span>
+              </div>
             </div>
           </div>
         </div>

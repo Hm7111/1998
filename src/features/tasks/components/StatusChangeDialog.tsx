@@ -12,7 +12,7 @@ interface StatusChangeDialogProps {
 
 /**
  * نافذة منبثقة لتوضيح سبب تغيير حالة المهمة
- * تُستخدم خاصة مع حالات التأجيل والرفض
+ * تُستخدم خاصة مع حالات التأجيل والرفض والإكمال
  */
 export function StatusChangeDialog({
   isOpen,
@@ -48,13 +48,6 @@ export function StatusChangeDialog({
           description: 'هل تريد إضافة ملاحظات حول الإنجاز؟',
           icon: <CheckCircle className="h-6 w-6 text-green-500" />,
           color: 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300'
-        };
-      case 'in_progress':
-        return {
-          title: 'بدء العمل على المهمة',
-          description: 'هل تريد إضافة ملاحظات حول بدء العمل؟',
-          icon: <AlertTriangle className="h-6 w-6 text-yellow-500" />,
-          color: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300'
         };
       default:
         return {

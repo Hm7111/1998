@@ -83,7 +83,7 @@ export function useTaskActions() {
           try {
             const { data: timeData, error: timeError } = await supabase.rpc(
               'get_task_time_records',
-              { task_id: taskId }
+              { p_task_id: taskId }
             );
             
             if (timeError) {

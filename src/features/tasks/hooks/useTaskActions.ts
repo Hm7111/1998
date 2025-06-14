@@ -656,7 +656,7 @@ export function useTaskActions() {
     deleteTaskAttachment: deleteTaskAttachment.mutate,
     isTaskOwner,
     isTaskAssignee,
-    canAccessTask
+    canAccessTask,
     getTaskLogs
   };
 }

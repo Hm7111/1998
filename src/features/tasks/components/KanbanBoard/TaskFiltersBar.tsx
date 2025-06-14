@@ -10,6 +10,7 @@ import {
   SortAsc,
   SortDesc,
   X,
+  AlertTriangle,
   Clock
 } from 'lucide-react';
 import { TaskFilters, TaskPriority } from '../../types';

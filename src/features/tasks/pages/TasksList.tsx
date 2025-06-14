@@ -7,7 +7,6 @@ import {
   RefreshCw,
   BarChartHorizontal,
   Calendar,
-  Clock,
   CheckCircle,
   AlertTriangle,
   Pause
@@ -15,7 +14,6 @@ import {
 import { useTaskList } from '../hooks/useTaskList';
 import { useTaskActions } from '../hooks/useTaskActions';
 import { KanbanBoard } from '../components/KanbanBoard';
-import { TasksList as TasksListComponent } from '../components/TasksList';
 import { TaskReport } from '../components/TaskReport';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/Tabs';
 import { useAuth } from '../../../lib/auth';
@@ -27,7 +25,7 @@ export function TasksList() {
   const navigate = useNavigate();
   const { isAdmin, hasPermission } = useAuth();
   
-  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar' | 'report'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar' | 'report'>('kanban');
   
   const { 
     tasks, 
@@ -146,7 +144,10 @@ export function TasksList() {
             className="w-full h-full flex flex-col items-center justify-center text-center"
             onClick={() => updateFilters({ status: 'all' })}
           >
-            <Clock className="h-6 w-6 mb-2 text-primary" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 mb-2 text-primary">
+              <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z"/>
+              <path d="M12 8v4l3 3"/>
+            </svg>
             <span className="text-sm font-medium">الكل</span>
             <span className="text-2xl font-bold mt-1">{taskSummary.total}</span>
           </button>
@@ -160,7 +161,10 @@ export function TasksList() {
             onClick={() => updateFilters({ status: 'new' })}
           >
             <span className="h-6 w-6 mb-2 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-              <Clock className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-blue-600 dark:text-blue-300">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
             </span>
             <span className="text-sm font-medium">جديدة</span>
             <span className="text-2xl font-bold mt-1">{taskSummary.new}</span>
@@ -220,7 +224,10 @@ export function TasksList() {
             onClick={() => updateFilters({ timeframe: filters.timeframe === 'overdue' ? 'all' : 'overdue' })}
           >
             <span className="h-6 w-6 mb-2 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-              <Clock className="h-4 w-4 text-red-600 dark:text-red-300" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-red-600 dark:text-red-300">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
             </span>
             <span className="text-sm font-medium">متأخرة</span>
             <span className="text-2xl font-bold mt-1">{taskSummary.overdue}</span>
@@ -230,7 +237,9 @@ export function TasksList() {
 
       {/* محتوى العرض حسب الوضع المحدد */}
       {viewMode === 'list' && (
-        <TasksListComponent />
+        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-4 border dark:border-gray-800">
+          <p className="text-center text-gray-500 py-8">سيتم تطوير عرض القائمة المفصلة قريباً</p>
+        </div>
       )}
       
       {viewMode === 'kanban' && (

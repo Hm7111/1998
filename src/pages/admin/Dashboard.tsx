@@ -3,32 +3,15 @@ import { useNavigate, Link } from 'react-router-dom';
 import { 
   Plus, 
   FileText, 
-  Search, 
-  Filter, 
-  SortAsc, 
-  SortDesc,
-  FileCheck,
   Calendar,
-  Building,
-  User,
-  Flag,
-  CheckCircle,
-  Clock, 
-  ClipboardList, 
-  PlusCircle, 
-  BarChartHorizontal, 
-  Bell,
-  Sparkles,
-  BookOpen,
-  Rocket,
-  LayoutDashboard,
-  ActivitySquare,
   Building as BuildingIcon,
   ArrowRight,
   Shield,
-  Settings,
   Info,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  FileCheck,
+  User as UserIcon
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
@@ -222,6 +205,50 @@ export function Dashboard() {
     }
   });
   
+  // استعلام لإحصائيات المهام - للمستخدمين الذين لديهم صلاحيات المهام فقط
+  const { data: taskStats = { total: 0, assigned: 0, pending: 0 } } = useQuery({
+    queryKey: ['task-stats', dbUser?.id],
+    enabled: !!dbUser?.id && hasTaskPermissions,
+    queryFn: async () => {
+      try {
+        // استعلام لإحصائيات المهام
+        const { data: tasksCount, error: countError } = await supabase
+          .from('tasks')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_active', true);
+        
+        if (countError) throw countError;
+        
+        // استعلام للمهام المسندة للمستخدم
+        const { data: assignedCount, error: assignedError } = await supabase
+          .from('tasks')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_to', dbUser?.id)
+          .eq('is_active', true);
+        
+        if (assignedError) throw assignedError;
+        
+        // استعلام للمهام المنتظرة (الجديدة أو قيد التنفيذ)
+        const { data: pendingCount, error: pendingError } = await supabase
+          .from('tasks')
+          .select('*', { count: 'exact', head: true })
+          .in('status', ['new', 'in_progress'])
+          .eq('is_active', true);
+        
+        if (pendingError) throw pendingError;
+        
+        return {
+          total: tasksCount || 0,
+          assigned: assignedCount || 0,
+          pending: pendingCount || 0
+        };
+      } catch (error) {
+        console.error('Error fetching task stats:', error);
+        return { total: 0, assigned: 0, pending: 0 };
+      }
+    }
+  });
+  
   // تحديد إذا كان المستخدم ليس لديه أي صلاحيات على الإطلاق
   const hasNoPermissions = useMemo(() => {
     if (!dbUser) return true;
@@ -280,7 +307,7 @@ export function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg">
               <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                <Settings className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <BuildingIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 <span className="text-blue-800 dark:text-blue-300">معلومات المستخدم</span>
               </h3>
               <ul className="space-y-3 text-blue-700 dark:text-blue-300">
@@ -305,7 +332,7 @@ export function Dashboard() {
             
             <div className="bg-purple-50 dark:bg-purple-900/20 p-6 rounded-lg">
               <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                <BookOpen className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                <BuildingIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                 <span className="text-purple-800 dark:text-purple-300">خيارات متاحة</span>
               </h3>
               <div className="space-y-3">
@@ -316,7 +343,7 @@ export function Dashboard() {
                   to="/admin/settings"
                   className="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm text-purple-700 dark:text-purple-300 hover:shadow-md transition-shadow"
                 >
-                  <Settings className="h-5 w-5" />
+                  <BuildingIcon className="h-5 w-5" />
                   <span>الإعدادات الشخصية</span>
                 </Link>
                 <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg text-purple-700 dark:text-purple-300">
@@ -381,19 +408,6 @@ export function Dashboard() {
                 />
               </div>
             )}
-            
-            <div className="relative">
-              <button className="relative p-2 bg-white dark:bg-gray-800 rounded-full shadow-sm hover:bg-gray-100 dark:hover:bg-gray-700">
-                <Bell className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                {notifications.some(n => !n.read) && (
-                  <span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 rounded-full"></span>
-                )}
-              </button>
-            </div>
-            
-            <div className="bg-white dark:bg-gray-800 p-2 rounded-full shadow-sm">
-              <UserCircle className="h-6 w-6 text-primary" />
-            </div>
           </div>
         </div>
       </motion.div>
@@ -480,7 +494,10 @@ export function Dashboard() {
 
           <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 opacity-10">
-              <Clock className="h-32 w-32 -mt-6 -mr-6" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-32 w-32 -mt-6 -mr-6">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
             </div>
             <h3 className="text-lg font-semibold mb-2">المسودات</h3>
             <div className="flex items-baseline space-x-2 rtl:space-x-reverse">
@@ -511,7 +528,11 @@ export function Dashboard() {
         >
           <div className="p-5 border-b dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-              <Rocket className="h-5 w-5 ml-2 text-primary" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 ml-2 text-primary">
+                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path>
+                <path d="M9 18h6"></path>
+                <path d="M10 22h4"></path>
+              </svg>
               إجراءات سريعة
             </h2>
           </div>
@@ -571,7 +592,10 @@ export function Dashboard() {
                 className="w-full flex items-center p-4 rounded-lg transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50 border-2 border-gray-100 dark:border-gray-700"
               >
                 <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center ml-4">
-                  <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-amber-600 dark:text-amber-400">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
                 </div>
                 <div className="flex-1 text-right">
                   <h3 className="font-semibold text-gray-800 dark:text-white">إدارة المهام</h3>
@@ -608,7 +632,9 @@ export function Dashboard() {
           >
             <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-                <ActivitySquare className="h-5 w-5 ml-2 text-green-500" />
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 ml-2 text-green-500">
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                </svg>
                 نشاط الخطابات
                 {selectedBranch && (
                   <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
@@ -754,7 +780,7 @@ export function Dashboard() {
           >
             <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-                <BookOpen className="h-5 w-5 ml-2 text-blue-500" />
+                <BuildingIcon className="h-5 w-5 ml-2 text-blue-500" />
                 آخر الخطابات
                 {selectedBranch && (
                   <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
@@ -840,7 +866,7 @@ export function Dashboard() {
                       onClick={() => navigate('/admin/letters/new')}
                       className="px-4 py-2 bg-primary text-white rounded-lg text-sm flex items-center gap-2 mx-auto"
                     >
-                      <PlusCircle className="h-4 w-4" />
+                      <Plus className="h-4 w-4" />
                       خطاب جديد
                     </button>
                   ) : (
@@ -864,7 +890,11 @@ export function Dashboard() {
           >
             <div className="p-5 border-b dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
-                <LayoutDashboard className="h-5 w-5 ml-2 text-purple-500" />
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 ml-2 text-purple-500">
+                  <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+                  <line x1="3" x2="21" y1="9" y2="9"></line>
+                  <path d="m9 16 2 2 4-4"></path>
+                </svg>
                 المهام والتذكيرات
                 {selectedBranch && (
                   <span className="mr-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-1 rounded-full">
@@ -876,42 +906,40 @@ export function Dashboard() {
             
             <div className="p-5">
               <div className="space-y-3">
-                {/* محاكاة للمهام - يمكن استبدالها بمهام حقيقية لاحقاً */}
+                {/* إحصائيات المهام */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">إجمالي المهام</p>
+                    <p className="text-2xl font-bold mt-1">{taskStats.total}</p>
+                  </div>
+                  <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">المهام المسندة</p>
+                    <p className="text-2xl font-bold mt-1">{taskStats.assigned}</p>
+                  </div>
+                  <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">المهام المعلقة</p>
+                    <p className="text-2xl font-bold mt-1">{taskStats.pending}</p>
+                  </div>
+                </div>
+                
+                {/* نماذج المهام */}
                 <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
                   <div className="flex items-center">
                     <div className="h-5 w-5 rounded-full border-2 border-primary flex-shrink-0"></div>
                     
                     <div className="flex-1 mr-3 min-w-0">
                       <p className="font-medium text-gray-800 dark:text-white">
-                        مراجعة الإعدادات الشخصية
+                        تحديث الإعدادات
                       </p>
                       
                       <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        تاريخ الاستحقاق: {new Date().toLocaleDateString()}
+                        الموعد النهائي: {new Date().toLocaleDateString()}
                       </p>
                     </div>
                     
                     <button className="p-1 text-primary hover:text-primary/80">
                       <CheckCircle className="h-5 w-5" />
                     </button>
-                  </div>
-                </div>
-                
-                <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/20">
-                  <div className="flex items-center">
-                    <div className="h-5 w-5 rounded-full flex items-center justify-center bg-green-500 text-white flex-shrink-0">
-                      <CheckCircle className="h-4 w-4" />
-                    </div>
-                    
-                    <div className="flex-1 mr-3 min-w-0">
-                      <p className="font-medium text-gray-500 dark:text-gray-400 line-through">
-                        تحديث البيانات الشخصية
-                      </p>
-                      
-                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        تم الإنجاز: {new Date(Date.now() - 86400000).toLocaleDateString()}
-                      </p>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -927,26 +955,16 @@ export function Dashboard() {
                   </button>
                 </div>
               </RestrictedComponent>
-            </div>
-            
-            {/* Upcoming Events - محاكاة */}
-            <div className="border-t dark:border-gray-700 p-5">
-              <h3 className="font-medium text-gray-800 dark:text-white flex items-center mb-4">
-                <Calendar className="h-4 w-4 ml-2 text-primary" />
-                أحداث قادمة
-              </h3>
               
-              <div className="space-y-3">
-                <div className="flex items-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
-                  <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg flex flex-col items-center justify-center">
-                    <span className="text-xs font-semibold">12</span>
-                    <span className="text-xs">يونيو</span>
-                  </div>
-                  <div className="mr-3">
-                    <p className="font-medium text-gray-800 dark:text-white">مراجعة الإعدادات</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">10:00 صباحاً - 11:30 صباحاً</p>
-                  </div>
-                </div>
+              {/* رابط للانتقال لصفحة المهام الرئيسية */}
+              <div className="mt-4 text-center">
+                <Link
+                  to="/admin/tasks"
+                  className="inline-flex items-center text-primary hover:text-primary/80 text-sm"
+                >
+                  <span>عرض كافة المهام</span>
+                  <ArrowRight className="h-4 w-4 mr-1" />
+                </Link>
               </div>
             </div>
           </motion.div>
@@ -1030,7 +1048,7 @@ export function Dashboard() {
 }
 
 // أيقونة دائرة المستخدم
-function UserCircle(props: any) {
+function User(props: any) {
   return (
     <svg 
       xmlns="http://www.w3.org/2000/svg" 
